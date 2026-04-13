@@ -24,13 +24,14 @@ export default function Page() {
   const { data: meta } = useGetMeta({
     query: {
       retry: false,
-      refetchInterval: (query) => (query.state.data ? false : 1500),
+      refetchInterval: (query) =>
+        query.state.data?.bootstrap.phase === 'ready' ? false : 1500,
       staleTime: Infinity,
     },
   })
 
-  if (!meta) {
-    return <AppInitializationSkeleton />
+  if (!meta || meta.bootstrap.phase !== 'ready') {
+    return <AppInitializationSkeleton bootstrap={meta?.bootstrap} />
   }
 
   return (

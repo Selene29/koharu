@@ -38,6 +38,7 @@ import {
   MenubarTrigger,
 } from '@/components/ui/menubar'
 import { SettingsDialog, type TabId } from '@/components/SettingsDialog'
+import { useGetMeta } from '@/lib/api/system/system'
 import { useProcessing } from '@/lib/machines'
 import { useEditorUiStore } from '@/lib/stores/editorUiStore'
 import { usePreferencesStore } from '@/lib/stores/preferencesStore'
@@ -59,9 +60,20 @@ type MenuSection = {
 export function MenuBar() {
   const { t } = useTranslation()
   const { send } = useProcessing()
+  const { data: meta } = useGetMeta({
+    query: {
+      retry: false,
+      refetchInterval: (query) =>
+        query.state.data?.bootstrap.phase === 'ready' ? false : 1500,
+      staleTime: Infinity,
+    },
+  })
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState<TabId>('appearance')
-  const hasDocument = useEditorUiStore((state) => state.currentDocumentId !== null)
+  const hasDocument = useEditorUiStore(
+    (state) => state.currentDocumentId !== null,
+  )
+  const menusEnabled = meta?.bootstrap.phase === 'ready'
 
   const buildPipelineRequest = (documentId?: string): PipelineJobRequest => {
     const { selectedTarget, selectedLanguage, renderEffect, renderStroke } =
@@ -236,7 +248,7 @@ export function MenuBar() {
                 key={item.label}
                 data-testid={item.testId}
                 className='text-[13px]'
-                disabled={item.disabled}
+                disabled={!menusEnabled || item.disabled}
                 onSelect={
                   item.onSelect
                     ? () => {
@@ -265,6 +277,7 @@ export function MenuBar() {
             <MenubarTrigger
               data-testid={triggerTestId}
               className='hover:bg-accent data-[state=open]:bg-accent rounded px-3 py-1.5 font-medium'
+              disabled={!menusEnabled}
             >
               {label}
             </MenubarTrigger>
@@ -279,7 +292,7 @@ export function MenuBar() {
                   key={item.label}
                   data-testid={item.testId}
                   className='text-[13px]'
-                  disabled={item.disabled}
+                  disabled={!menusEnabled || item.disabled}
                   onSelect={
                     item.onSelect
                       ? () => {

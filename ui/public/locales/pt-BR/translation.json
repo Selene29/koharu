@@ -244,12 +244,12 @@
     "proxyUrlPlaceholder": "HTTP://127.0.0.1:7890",
     "pathsRequired": "O CAMINHO DO RUNTIME E O CAMINHO DOS MODELOS SÃO OBRIGATÓRIOS.",
     "failedLoadConfig": "FALHA AO CARREGAR A CONFIGURAÇÃO.",
-    "failed": "FALHOU",
     "waitingForDownload": "AGUARDANDO DOWNLOAD",
     "back": "VOLTAR",
     "next": "PRÓXIMO",
     "init": "INICIAR",
-    "retryNow": "TENTAR NOVAMENTE"
+    "retrying": "RETRYING STARTUP",
+    "retryingDescription": "Koharu will retry startup automatically in the background."
   },
   "settings": {
     "httpProxy": "Proxy HTTP",

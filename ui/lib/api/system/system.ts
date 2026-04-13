@@ -944,7 +944,7 @@ export const getGetMetaQueryKey = () => {
 
 export const getGetMetaQueryOptions = <
   TData = Awaited<ReturnType<typeof getMeta>>,
-  TError = ApiError,
+  TError = unknown,
 >(options?: {
   query?: Partial<
     UseQueryOptions<Awaited<ReturnType<typeof getMeta>>, TError, TData>
@@ -973,11 +973,11 @@ export const getGetMetaQueryOptions = <
 export type GetMetaQueryResult = NonNullable<
   Awaited<ReturnType<typeof getMeta>>
 >
-export type GetMetaQueryError = ApiError
+export type GetMetaQueryError = unknown
 
 export function useGetMeta<
   TData = Awaited<ReturnType<typeof getMeta>>,
-  TError = ApiError,
+  TError = unknown,
 >(
   options: {
     query: Partial<
@@ -999,7 +999,7 @@ export function useGetMeta<
 }
 export function useGetMeta<
   TData = Awaited<ReturnType<typeof getMeta>>,
-  TError = ApiError,
+  TError = unknown,
 >(
   options?: {
     query?: Partial<
@@ -1021,7 +1021,7 @@ export function useGetMeta<
 }
 export function useGetMeta<
   TData = Awaited<ReturnType<typeof getMeta>>,
-  TError = ApiError,
+  TError = unknown,
 >(
   options?: {
     query?: Partial<
@@ -1036,7 +1036,7 @@ export function useGetMeta<
 
 export function useGetMeta<
   TData = Awaited<ReturnType<typeof getMeta>>,
-  TError = ApiError,
+  TError = unknown,
 >(
   options?: {
     query?: Partial<

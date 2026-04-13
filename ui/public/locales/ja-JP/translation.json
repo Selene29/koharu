@@ -244,12 +244,12 @@
     "proxyUrlPlaceholder": "HTTP://127.0.0.1:7890",
     "pathsRequired": "ランタイムパスとモデルパスは必須です。",
     "failedLoadConfig": "設定を読み込めませんでした。",
-    "failed": "失敗",
     "waitingForDownload": "ダウンロード待機中",
     "back": "戻る",
     "next": "次へ",
     "init": "開始",
-    "retryNow": "今すぐ再試行"
+    "retrying": "RETRYING STARTUP",
+    "retryingDescription": "Koharu will retry startup automatically in the background."
   },
   "settings": {
     "httpProxy": "HTTP プロキシ",

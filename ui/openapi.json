@@ -77,7 +77,7 @@
                         }
                       ],
                       "default": {
-                        "path": "C:\\Users\\Mayo\\AppData\\Local\\Koharu"
+                        "path": "C:\\Users\\fffon\\AppData\\Local\\Koharu"
                       }
                     },
                     "http": {
@@ -149,7 +149,7 @@
                       }
                     ],
                     "default": {
-                      "path": "C:\\Users\\Mayo\\AppData\\Local\\Koharu"
+                      "path": "C:\\Users\\fffon\\AppData\\Local\\Koharu"
                     }
                   },
                   "http": {
@@ -209,7 +209,7 @@
                         }
                       ],
                       "default": {
-                        "path": "C:\\Users\\Mayo\\AppData\\Local\\Koharu"
+                        "path": "C:\\Users\\fffon\\AppData\\Local\\Koharu"
                       }
                     },
                     "http": {
@@ -1826,16 +1826,6 @@
                 }
               }
             }
-          },
-          "503": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
           }
         }
       }
@@ -1854,6 +1844,22 @@
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          }
+        }
+      },
+      "BootstrapPhase": {
+        "type": "string",
+        "enum": ["loading", "retrying", "ready"]
+      },
+      "BootstrapStatus": {
+        "type": "object",
+        "required": ["phase"],
+        "properties": {
+          "error": {
+            "type": ["string", "null"]
+          },
+          "phase": {
+            "$ref": "#/components/schemas/BootstrapPhase"
           }
         }
       },
@@ -2531,8 +2537,11 @@
       },
       "MetaInfo": {
         "type": "object",
-        "required": ["version", "mlDevice"],
+        "required": ["version", "mlDevice", "bootstrap"],
         "properties": {
+          "bootstrap": {
+            "$ref": "#/components/schemas/BootstrapStatus"
+          },
           "mlDevice": {
             "type": "string"
           },
@@ -2737,9 +2746,7 @@
       },
       "ReorderRequest": {
         "type": "object",
-        "required": [
-          "ids"
-        ],
+        "required": ["ids"],
         "properties": {
           "ids": {
             "type": "array",

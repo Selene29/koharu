@@ -66,7 +66,9 @@ function WorkflowButtons() {
   const { send, isProcessing, state } = useProcessing()
   const { data: llmState } = useGetLlm()
   const llmReady = llmState?.status === 'ready'
-  const hasDocument = useEditorUiStore((state) => state.currentDocumentId !== null)
+  const hasDocument = useEditorUiStore(
+    (state) => state.currentDocumentId !== null,
+  )
   const { t } = useTranslation()
 
   const isDetecting = state.matches('detecting')

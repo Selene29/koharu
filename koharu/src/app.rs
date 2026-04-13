@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -49,6 +50,56 @@ async fn build_resources(
         pipeline: Arc::new(RwLock::new(None)),
         version: crate::version::current(),
     })
+}
+
+fn format_bootstrap_error(error: &anyhow::Error) -> String {
+    error
+        .chain()
+        .map(std::string::ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn spawn_bootstrap(
+    shared: SharedState,
+    runtime: RuntimeManager,
+    data_root: camino::Utf8PathBuf,
+    cpu: bool,
+) {
+    if !shared.try_begin_bootstrap() {
+        return;
+    }
+
+    tauri::async_runtime::spawn(async move {
+        let mut backoff = Duration::from_secs(2);
+
+        loop {
+            shared.mark_bootstrap_loading().await;
+
+            let result = shared
+                .get_or_try_init(|| build_resources(runtime.clone(), data_root.clone(), cpu))
+                .await;
+
+            match result {
+                Ok(_) => {
+                    shared.mark_bootstrap_ready().await;
+                    break;
+                }
+                Err(err) => {
+                    let error = format_bootstrap_error(&err);
+                    tracing::warn!(
+                        retry_after_secs = backoff.as_secs(),
+                        "Failed to build resources, retrying in background: {err:#}"
+                    );
+                    shared.mark_bootstrap_retrying(error).await;
+                    tokio::time::sleep(backoff).await;
+                    backoff = (backoff * 2).min(Duration::from_secs(60));
+                }
+            }
+        }
+
+        shared.finish_bootstrap();
+    });
 }
 
 pub async fn run() -> Result<()> {
@@ -107,17 +158,23 @@ pub async fn run() -> Result<()> {
     let listener: TcpListener = TcpListener::bind((bind_host, bind_port)).await?;
     let port = listener.local_addr()?.port();
     let resources: Arc<tokio::sync::OnceCell<AppResources>> = Default::default();
-    let shared = SharedState::new(Arc::clone(&resources), runtime.clone());
+    let shared = SharedState::new(
+        Arc::clone(&resources),
+        runtime.clone(),
+        crate::version::current(),
+    );
     let mut context = tauri::generate_context!();
     let assets = crate::assets::from_context(&mut context);
 
     tracing::info!(root = %runtime.root().display(), port, "starting server");
 
     if cli.headless {
-        tauri::async_runtime::spawn(server::serve_with_listener(listener, shared, assets));
-        resources
-            .get_or_try_init(|| build_resources(runtime, data_root, cli.cpu))
-            .await?;
+        tauri::async_runtime::spawn(server::serve_with_listener(
+            listener,
+            shared.clone(),
+            assets,
+        ));
+        spawn_bootstrap(shared, runtime, data_root, cli.cpu);
         tokio::signal::ctrl_c().await?;
         return Ok(());
     }
@@ -128,17 +185,12 @@ pub async fn run() -> Result<()> {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(move |app| {
-            tauri::async_runtime::spawn(server::serve_with_listener(listener, shared, assets));
-
-            tauri::async_runtime::spawn(async move {
-                if let Err(err) = resources
-                    .get_or_try_init(|| build_resources(runtime, data_root, cli.cpu))
-                    .await
-                {
-                    tracing::error!("Failed to build resources: {err:#}");
-                    std::process::exit(1);
-                }
-            });
+            tauri::async_runtime::spawn(server::serve_with_listener(
+                listener,
+                shared.clone(),
+                assets,
+            ));
+            spawn_bootstrap(shared.clone(), runtime, data_root, cli.cpu);
 
             let url: tauri::Url = if cfg!(debug_assertions) {
                 // Dev: use Next.js dev server (rewrites proxy API to Axum)

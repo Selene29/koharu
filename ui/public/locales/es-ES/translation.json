@@ -244,12 +244,12 @@
     "proxyUrlPlaceholder": "HTTP://127.0.0.1:7890",
     "pathsRequired": "SE REQUIEREN LA RUTA DEL RUNTIME Y LA RUTA DE LOS MODELOS.",
     "failedLoadConfig": "NO SE PUDO CARGAR LA CONFIGURACIÓN.",
-    "failed": "FALLÓ",
     "waitingForDownload": "ESPERANDO DESCARGA",
     "back": "ATRÁS",
     "next": "SIGUIENTE",
     "init": "INICIAR",
-    "retryNow": "REINTENTAR AHORA"
+    "retrying": "RETRYING STARTUP",
+    "retryingDescription": "Koharu will retry startup automatically in the background."
   },
   "settings": {
     "httpProxy": "Proxy HTTP",

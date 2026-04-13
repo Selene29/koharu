@@ -5,6 +5,8 @@
  */
 
 export * from './apiError'
+export * from './bootstrapPhase'
+export * from './bootstrapStatus'
 export * from './brushRegionRequest'
 export * from './createTextBlock'
 export * from './dataConfig'

@@ -264,7 +264,6 @@ export const useImportDocuments = <TError = ApiError, TContext = unknown>(
 > => {
   return useMutation(getImportDocumentsMutationOptions(options), queryClient)
 }
-
 export const getReorderDocumentsUrl = () => {
   return `/api/v1/documents/order`
 }
@@ -344,7 +343,6 @@ export const useReorderDocuments = <TError = ApiError, TContext = unknown>(
 > => {
   return useMutation(getReorderDocumentsMutationOptions(options), queryClient)
 }
-
 export const getGetDocumentUrl = (documentId: string) => {
   return `/api/v1/documents/${documentId}`
 }

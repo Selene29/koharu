@@ -3,8 +3,10 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
+import type { BootstrapStatus } from './bootstrapStatus'
 
 export interface MetaInfo {
+  bootstrap: BootstrapStatus
   mlDevice: string
   version: string
 }

@@ -244,12 +244,12 @@
     "proxyUrlPlaceholder": "HTTP://127.0.0.1:7890",
     "pathsRequired": "ПУТЬ К СРЕДЕ И ПУТЬ К МОДЕЛЯМ ОБЯЗАТЕЛЬНЫ.",
     "failedLoadConfig": "НЕ УДАЛОСЬ ЗАГРУЗИТЬ КОНФИГУРАЦИЮ.",
-    "failed": "СБОЙ",
     "waitingForDownload": "ОЖИДАНИЕ ЗАГРУЗКИ",
     "back": "НАЗАД",
     "next": "ДАЛЕЕ",
     "init": "СТАРТ",
-    "retryNow": "ПОВТОРИТЬ СЕЙЧАС"
+    "retrying": "RETRYING STARTUP",
+    "retryingDescription": "Koharu will retry startup automatically in the background."
   },
   "settings": {
     "httpProxy": "HTTP-прокси",

@@ -128,10 +128,7 @@ export function PageManagerDialog({
             collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
           >
-            <SortableContext
-              items={orderedIds}
-              strategy={rectSortingStrategy}
-            >
+            <SortableContext items={orderedIds} strategy={rectSortingStrategy}>
               <div
                 data-testid='page-manager-grid'
                 className='grid grid-cols-3 gap-3 sm:grid-cols-4'
@@ -216,7 +213,7 @@ function PageCard({ id, index, name, dragging }: PageCardProps) {
     <div
       data-testid={`page-manager-card-${index}`}
       className={`bg-card flex flex-col items-center gap-1 rounded border p-2 shadow-sm select-none ${
-        dragging ? 'ring-primary ring-2 shadow-lg' : ''
+        dragging ? 'ring-primary shadow-lg ring-2' : ''
       }`}
     >
       <div className='flex aspect-3/4 w-full items-center justify-center overflow-hidden rounded'>

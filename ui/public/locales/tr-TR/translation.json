@@ -244,12 +244,12 @@
     "proxyUrlPlaceholder": "HTTP://127.0.0.1:7890",
     "pathsRequired": "RUNTIME YOLU VE MODEL YOLU GEREKLİDİR.",
     "failedLoadConfig": "YAPILANDIRMA YÜKLENEMEDİ.",
-    "failed": "BAŞARISIZ",
     "waitingForDownload": "İNDİRME BEKLENİYOR",
     "back": "GERİ",
     "next": "İLERİ",
     "init": "BAŞLAT",
-    "retryNow": "ŞİMDİ TEKRAR DENE"
+    "retrying": "RETRYING STARTUP",
+    "retryingDescription": "Koharu will retry startup automatically in the background."
   },
   "settings": {
     "httpProxy": "HTTP Proxy",

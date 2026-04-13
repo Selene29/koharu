@@ -221,16 +221,30 @@ async fn get_engine_catalog() -> Json<koharu_core::EngineCatalog> {
     tag = "system",
     responses(
         (status = 200, body = MetaInfo),
-        (status = 503, body = ApiError),
     ),
 )]
-async fn get_meta(State(state): State<ApiState>) -> ApiResult<Json<MetaInfo>> {
-    let resources = state.resources()?;
-    let device = io::device(resources.clone()).await?;
-    Ok(Json(MetaInfo {
-        version: resources.version.to_string(),
-        ml_device: device.ml_device,
-    }))
+async fn get_meta(State(state): State<ApiState>) -> Json<MetaInfo> {
+    let bootstrap = state.resources.bootstrap_status().await;
+
+    let (version, ml_device) = match state.resources.get() {
+        Some(resources) => {
+            let ml_device = match io::device(resources.clone()).await {
+                Ok(device) => device.ml_device,
+                Err(error) => {
+                    tracing::warn!("failed to resolve device for meta: {error:#}");
+                    String::new()
+                }
+            };
+            (resources.version.to_string(), ml_device)
+        }
+        None => (state.resources.version().to_string(), String::new()),
+    };
+
+    Json(MetaInfo {
+        version,
+        ml_device,
+        bootstrap,
+    })
 }
 
 #[utoipa::path(

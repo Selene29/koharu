@@ -22,6 +22,46 @@ pub struct FontFaceInfo {
 pub struct MetaInfo {
     pub version: String,
     pub ml_device: String,
+    pub bootstrap: BootstrapStatus,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, ToSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum BootstrapPhase {
+    Loading,
+    Retrying,
+    Ready,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToSchema, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct BootstrapStatus {
+    pub phase: BootstrapPhase,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+impl BootstrapStatus {
+    pub fn loading() -> Self {
+        Self {
+            phase: BootstrapPhase::Loading,
+            error: None,
+        }
+    }
+
+    pub fn ready() -> Self {
+        Self {
+            phase: BootstrapPhase::Ready,
+            error: None,
+        }
+    }
+
+    pub fn retrying(error: impl Into<String>) -> Self {
+        Self {
+            phase: BootstrapPhase::Retrying,
+            error: Some(error.into()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToSchema)]

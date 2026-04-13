@@ -244,12 +244,12 @@
     "proxyUrlPlaceholder": "HTTP://127.0.0.1:7890",
     "pathsRequired": "런타임 경로 및 모델 경로가 필요합니다.",
     "failedLoadConfig": "설정 불러오기에 실패했습니다.",
-    "failed": "실패",
     "waitingForDownload": "다운로드 대기 중",
     "back": "뒤로",
     "next": "다음",
     "init": "초기화",
-    "retryNow": "지금 다시 시도"
+    "retrying": "RETRYING STARTUP",
+    "retryingDescription": "Koharu will retry startup automatically in the background."
   },
   "settings": {
     "httpProxy": "HTTP 프록시",
