@@ -17,5 +17,6 @@ pub use inventory;
 pub use loader::{load_library_by_name, load_library_by_path};
 pub use packages::{PackageCatalog as Catalog, PackageFuture, PackageKind, PackageRegistration};
 pub use runtime::{
-    ComputePolicy, Runtime, RuntimeHttpConfig, RuntimeManager, default_app_data_root,
+    APP_CONFIG_FILE, ComputePolicy, Runtime, RuntimeHttpConfig, RuntimeManager,
+    default_app_data_root,
 };

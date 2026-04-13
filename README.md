@@ -80,6 +80,29 @@ Koharu lets you configure the shared local data path plus HTTP connect timeout, 
 
 Those values are loaded at startup, so changing them saves the config and restarts the app.
 
+By default, Koharu stores its config, runtime packages, downloaded models, page manifests, and cached assets under the platform app data directory.
+
+### Portable Deployment
+
+Koharu also supports a portable layout. If a `config.toml` exists next to the app binary, Koharu treats that directory as the portable root instead of using the platform app data directory.
+
+In portable mode:
+
+- the default data path is the portable root
+- runtime packages are stored under `runtime/`
+- downloaded models are stored under `models/`
+- startup does not need network access as long as the required runtime packages and model files are already present locally
+- update checks may still run in the background, but they do not block startup
+
+If you want to prefetch the default runtime packages and default vision / OCR stack before going offline, run:
+
+```bash
+# macOS / Linux
+koharu --download
+# Windows
+koharu.exe --download
+```
+
 ### Google Fonts
 
 Koharu includes built-in Google Fonts support for translated text rendering, so you can use web fonts without managing font files by hand.
@@ -241,6 +264,8 @@ For LM Studio, OpenRouter, and other OpenAI-style endpoints, see [Use OpenAI-Com
 You can download the latest release of Koharu from the [releases page](https://github.com/mayocream/koharu/releases/latest).
 
 We provide prebuilt binaries for Windows, macOS, and Linux. For the standard install flow, see [Install Koharu](https://koharu.rs/how-to/install-koharu/). If something goes wrong, see [Troubleshooting](https://koharu.rs/how-to/troubleshooting/).
+
+For portable deployments, place a `config.toml` next to the binary. Koharu will then keep its default config, runtime, and model directories next to the app instead of using the system app data location.
 
 ## Development
 

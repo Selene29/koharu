@@ -3,11 +3,9 @@ use std::fs;
 use anyhow::{Context, Result};
 use camino::Utf8PathBuf;
 use koharu_llm::providers::{get_saved_api_key, set_saved_api_key};
-use koharu_runtime::default_app_data_root;
+use koharu_runtime::{APP_CONFIG_FILE, default_app_data_root};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use utoipa::ToSchema;
-
-const CONFIG_FILE: &str = "config.toml";
 const REDACTED: &str = "[REDACTED]";
 
 // ---------------------------------------------------------------------------
@@ -144,7 +142,7 @@ impl Default for HttpConfig {
 // ---------------------------------------------------------------------------
 
 pub fn config_path() -> Result<Utf8PathBuf> {
-    Ok(default_app_data_root().join(CONFIG_FILE))
+    Ok(default_app_data_root().join(APP_CONFIG_FILE))
 }
 
 pub fn load() -> Result<AppConfig> {

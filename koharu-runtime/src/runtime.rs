@@ -9,6 +9,7 @@ use tokio::sync::broadcast;
 use crate::downloads::Downloads;
 use crate::packages::PackageCatalog;
 
+pub const APP_CONFIG_FILE: &str = "config.toml";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ComputePolicy {
     PreferGpu,
@@ -32,12 +33,54 @@ impl Default for RuntimeHttpConfig {
     }
 }
 
+pub fn portable_root() -> Option<Utf8PathBuf> {
+    portable_root_from(
+        std::env::current_exe().ok().as_deref(),
+        std::env::current_dir().ok().as_deref(),
+    )
+    .map(utf8_path_buf)
+}
+
 pub fn default_app_data_root() -> Utf8PathBuf {
+    if let Some(root) = portable_root() {
+        return root;
+    }
+
     let root = dirs::data_local_dir()
         .or_else(dirs::data_dir)
         .unwrap_or_else(std::env::temp_dir)
         .join("Koharu");
-    Utf8PathBuf::from_path_buf(root)
+    utf8_path_buf(root)
+}
+
+fn portable_root_from(exe: Option<&Path>, cwd: Option<&Path>) -> Option<PathBuf> {
+    let mut candidates = Vec::new();
+
+    if let Some(exe) = exe
+        && let Some(parent) = exe.parent()
+    {
+        push_candidate(&mut candidates, parent);
+    } else if let Some(cwd) = cwd {
+        push_candidate(&mut candidates, cwd);
+    }
+
+    candidates
+        .into_iter()
+        .find(|candidate| is_portable_root(candidate))
+}
+
+fn push_candidate(candidates: &mut Vec<PathBuf>, candidate: &Path) {
+    if !candidates.iter().any(|existing| existing == candidate) {
+        candidates.push(candidate.to_path_buf());
+    }
+}
+
+fn is_portable_root(candidate: &Path) -> bool {
+    candidate.join(APP_CONFIG_FILE).is_file()
+}
+
+fn utf8_path_buf(path: PathBuf) -> Utf8PathBuf {
+    Utf8PathBuf::from_path_buf(path)
         .unwrap_or_else(|path| Utf8PathBuf::from(path.to_string_lossy().into_owned()))
 }
 
@@ -128,6 +171,46 @@ mod tests {
     use anyhow::Result;
 
     use super::*;
+
+    #[test]
+    fn portable_root_detects_marker_next_to_binary() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let app_root = tempdir.path();
+        fs::write(app_root.join(APP_CONFIG_FILE), b"portable = true").unwrap();
+
+        let root = portable_root_from(Some(&app_root.join("koharu.exe")), None);
+        assert_eq!(root.as_deref(), Some(app_root));
+    }
+
+    #[test]
+    fn portable_root_returns_none_without_marker() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let app_root = tempdir.path();
+
+        assert!(portable_root_from(Some(&app_root.join("koharu.exe")), None).is_none());
+    }
+
+    #[test]
+    fn portable_root_does_not_use_cwd_when_binary_path_is_available() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let app_root = tempdir.path().join("app");
+        let cwd = tempdir.path().join("cwd");
+        fs::create_dir_all(&app_root).unwrap();
+        fs::create_dir_all(&cwd).unwrap();
+        fs::write(cwd.join(APP_CONFIG_FILE), b"portable = true").unwrap();
+
+        assert!(portable_root_from(Some(&app_root.join("koharu.exe")), Some(&cwd)).is_none());
+    }
+
+    #[test]
+    fn portable_root_uses_cwd_when_binary_path_is_unavailable() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let cwd = tempdir.path();
+        fs::write(cwd.join(APP_CONFIG_FILE), b"portable = true").unwrap();
+
+        let root = portable_root_from(None, Some(cwd));
+        assert_eq!(root.as_deref(), Some(cwd));
+    }
 
     #[tokio::test]
     #[ignore]
