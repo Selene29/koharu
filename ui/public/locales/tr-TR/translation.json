@@ -129,6 +129,7 @@
     "deleteModelDescription": "Bu işlem yerel model dosyasını kaldırır. Modeli tekrar yüklersen yeniden indirilir.",
     "deleteModelDeleting": "Siliniyor...",
     "deleteModelAction": "Sil",
+    "downloadModelAction": "İndir",
     "languages": {
       "en-US": "Amerikan İngilizcesi",
       "zh-CN": "Çince (Çin)",

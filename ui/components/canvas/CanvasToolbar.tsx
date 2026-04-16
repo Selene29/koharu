@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 import { motion } from 'motion/react'
 import {
   CheckCircleIcon,
+  DownloadIcon,
   ScanIcon,
   ScanTextIcon,
   Wand2Icon,
@@ -311,12 +312,7 @@ function LlmStatusPopover() {
   const selectedIsLoaded =
     llmReady && sameLlmTarget(llmState?.target, selectedTarget)
 
-  const handleSetSelectedModel = (key: string) => {
-    const nextSelection = llmModels.find(
-      ({ model }) => llmTargetKey(model.target) === key,
-    )
-    if (!nextSelection) return
-
+  const applySelectedModel = (nextSelection: SelectableLlmModel) => {
     const nextLanguages = nextSelection.model.languages
     const nextLanguage =
       llmSelectedLanguage && nextLanguages.includes(llmSelectedLanguage)
@@ -327,6 +323,15 @@ function LlmStatusPopover() {
       selectedTarget: nextSelection.model.target,
       selectedLanguage: nextLanguage,
     })
+  }
+
+  const handleSetSelectedModel = (key: string) => {
+    const nextSelection = llmModels.find(
+      ({ model }) => llmTargetKey(model.target) === key,
+    )
+    if (!nextSelection) return
+
+    applySelectedModel(nextSelection)
     setModelSearchQuery('')
   }
 
@@ -401,6 +406,22 @@ function LlmStatusPopover() {
     event.preventDefault()
     event.stopPropagation()
     handleRequestDeleteModel(modelEntry)
+  }
+
+  const handleDownloadButtonPointerUp = (
+    event: PointerEvent<HTMLButtonElement>,
+    modelEntry: SelectableLlmModel,
+  ) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (controlsDisabled || isProcessing || modelEntry.provider) return
+    applySelectedModel(modelEntry)
+    send({
+      type: 'START_LLM_LOAD',
+      request: {
+        target: modelEntry.model.target,
+      },
+    })
   }
 
   useEffect(() => {
@@ -539,6 +560,26 @@ function LlmStatusPopover() {
                               {provider.name}
                             </span>
                           ) : null}
+                          {!model.downloaded && !provider ? (
+                            <button
+                              type='button'
+                              data-testid={`llm-model-download-${index}`}
+                              onPointerDown={handleDeleteButtonPointerDown}
+                              onPointerUp={(event) =>
+                                handleDownloadButtonPointerUp(event, {
+                                  model,
+                                  provider,
+                                })
+                              }
+                              disabled={controlsDisabled || isProcessing}
+                              aria-label={t('llm.downloadModelAction', {
+                                defaultValue: 'Download',
+                              })}
+                              className='text-muted-foreground hover:bg-primary/10 hover:text-primary pointer-events-none inline-flex size-5 items-center justify-center rounded-sm opacity-0 transition group-hover/item:pointer-events-auto group-hover/item:opacity-100 disabled:pointer-events-none'
+                            >
+                              <DownloadIcon className='size-3.5' />
+                            </button>
+                          ) : null}
                           {model.downloaded && !provider ? (
                             <button
                               type='button'
@@ -554,7 +595,7 @@ function LlmStatusPopover() {
                               aria-label={t('llm.deleteModelAction', {
                                 defaultValue: 'Delete',
                               })}
-                              className='text-destructive hover:bg-destructive/10 hover:text-destructive pointer-events-none inline-flex size-5 items-center justify-center rounded-sm opacity-0 transition group-hover/item:pointer-events-auto group-hover/item:opacity-100 disabled:pointer-events-none disabled:opacity-50'
+                              className='text-destructive hover:bg-destructive/10 hover:text-destructive pointer-events-none inline-flex size-5 items-center justify-center rounded-sm opacity-0 transition group-hover/item:pointer-events-auto group-hover/item:opacity-100 disabled:pointer-events-none'
                             >
                               <Trash2Icon className='size-3.5' />
                             </button>

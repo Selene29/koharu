@@ -129,6 +129,7 @@
     "deleteModelDescription": "这会移除本地模型文件。再次加载该模型时需要重新下载。",
     "deleteModelDeleting": "正在删除...",
     "deleteModelAction": "删除",
+    "downloadModelAction": "下载",
     "languages": {
       "en-US": "美国英语",
       "zh-CN": "中文（中国）",

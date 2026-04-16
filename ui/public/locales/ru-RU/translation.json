@@ -129,6 +129,7 @@
     "deleteModelDescription": "Локальный файл модели будет удалён. При следующей загрузке модель придётся скачать заново.",
     "deleteModelDeleting": "Удаление...",
     "deleteModelAction": "Удалить",
+    "downloadModelAction": "Скачать",
     "languages": {
       "en-US": "Американский английский",
       "zh-CN": "Китайский (Китай)",

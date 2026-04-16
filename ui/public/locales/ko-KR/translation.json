@@ -129,6 +129,7 @@
     "deleteModelDescription": "로컬 모델 파일을 삭제합니다. 다시 로드하면 다시 다운로드됩니다.",
     "deleteModelDeleting": "삭제 중...",
     "deleteModelAction": "삭제",
+    "downloadModelAction": "다운로드",
     "languages": {
       "en-US": "영어 (미국)",
       "zh-CN": "중국어 (중국)",

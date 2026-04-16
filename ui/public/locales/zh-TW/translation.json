@@ -129,6 +129,7 @@
     "deleteModelDescription": "這會移除本機模型檔案。再次載入該模型時需要重新下載。",
     "deleteModelDeleting": "刪除中...",
     "deleteModelAction": "刪除",
+    "downloadModelAction": "下載",
     "languages": {
       "en-US": "英文（美國）",
       "zh-CN": "中文（中國）",

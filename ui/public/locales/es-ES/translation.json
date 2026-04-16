@@ -129,6 +129,7 @@
     "deleteModelDescription": "Esto elimina el archivo local del modelo. Si vuelves a cargarlo, se descargará de nuevo.",
     "deleteModelDeleting": "Eliminando...",
     "deleteModelAction": "Eliminar",
+    "downloadModelAction": "Descargar",
     "languages": {
       "en-US": "Inglés estadounidense",
       "zh-CN": "Chino (China)",
