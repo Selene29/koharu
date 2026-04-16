@@ -713,6 +713,29 @@ pub async fn llm_offload(state: AppResources) -> anyhow::Result<()> {
     Ok(())
 }
 
+pub async fn delete_local_model(state: AppResources, model_id: &str) -> anyhow::Result<()> {
+    let model = ModelId::from_str(model_id)?;
+    let target = local_target(model);
+
+    if state.llm.current_target().await.as_ref() == Some(&target) {
+        state.llm.offload().await;
+    }
+
+    let repo_path = model.cache_repo_path(&state.runtime);
+    match tokio::fs::metadata(&repo_path).await {
+        Ok(metadata) if metadata.is_dir() => {
+            tokio::fs::remove_dir_all(&repo_path).await?;
+        }
+        Ok(_) => {
+            tokio::fs::remove_file(&repo_path).await?;
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
+    }
+
+    Ok(())
+}
+
 pub async fn llm_ready(state: AppResources) -> anyhow::Result<bool> {
     Ok(state.llm.ready().await)
 }

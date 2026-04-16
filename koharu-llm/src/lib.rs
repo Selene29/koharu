@@ -288,6 +288,14 @@ impl ModelId {
         self.cached_path(runtime).is_some()
     }
 
+    pub fn cache_repo_path(&self, runtime: &RuntimeManager) -> PathBuf {
+        runtime
+            .root()
+            .join("models")
+            .join("huggingface")
+            .join(koharu_runtime::hf_hub::Repo::model(self.repo().to_string()).folder_name())
+    }
+
     pub async fn get(&self, runtime: &RuntimeManager) -> anyhow::Result<PathBuf> {
         runtime
             .downloads()
