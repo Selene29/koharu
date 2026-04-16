@@ -413,6 +413,11 @@ export const processingMachine = setup({
         queryKey: getListDocumentsQueryKey(),
       })
     },
+    invalidateLlmState: ({ context }) => {
+      context.queryClient.invalidateQueries({
+        queryKey: getGetLlmQueryKey(),
+      })
+    },
   },
   guards: {
     hasJobId: ({ context }) => context.jobId != null,
@@ -666,7 +671,7 @@ export const processingMachine = setup({
             },
             onDone: {
               target: 'running',
-              actions: ['setJobIdFromOutput'],
+              actions: ['setJobIdFromOutput', 'invalidateLlmState'],
             },
             onError: {
               target: '#processing.idle',
@@ -684,19 +689,24 @@ export const processingMachine = setup({
           },
           on: {
             PROGRESS: {
-              actions: ['updateProgress', 'updateProgressBar'],
+              actions: ['updateProgress', 'updateProgressBar', 'invalidateLlmState'],
             },
             DONE: {
               target: '#processing.idle',
-              actions: ['invalidateAll'],
+              actions: ['invalidateAll', 'invalidateLlmState'],
             },
             DONE_WITH_ERRORS: {
               target: '#processing.idle',
-              actions: ['invalidateAll', 'setErrorFromEvent', 'surfaceError'],
+              actions: [
+                'invalidateAll',
+                'invalidateLlmState',
+                'setErrorFromEvent',
+                'surfaceError',
+              ],
             },
             ERROR: {
               target: '#processing.idle',
-              actions: ['setErrorFromEvent', 'surfaceError'],
+              actions: ['invalidateLlmState', 'setErrorFromEvent', 'surfaceError'],
             },
           },
         },
@@ -736,13 +746,7 @@ export const processingMachine = setup({
             },
             DONE: {
               target: '#processing.idle',
-              actions: [
-                ({ context }) => {
-                  context.queryClient.invalidateQueries({
-                    queryKey: getGetLlmQueryKey(),
-                  })
-                },
-              ],
+              actions: ['invalidateLlmState'],
             },
             ERROR: {
               target: '#processing.idle',
@@ -760,13 +764,7 @@ export const processingMachine = setup({
         input: () => ({}),
         onDone: {
           target: 'idle',
-          actions: [
-            ({ context }) => {
-              context.queryClient.invalidateQueries({
-                queryKey: getGetLlmQueryKey(),
-              })
-            },
-          ],
+          actions: ['invalidateLlmState'],
         },
         onError: {
           target: 'idle',

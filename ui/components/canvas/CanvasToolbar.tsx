@@ -210,10 +210,11 @@ function LlmStatusPopover() {
   const llmSelectedLanguage = useEditorUiStore((state) => state.selectedLanguage)
   const { data: llmState } = useGetLlm()
   const llmReady = llmState?.status === 'ready'
+  const llmStateLoading = llmState?.status === 'loading'
   const { send, state } = useProcessing()
   const llmLoading = state.matches('loadingLlm')
   const llmUnloading = state.matches('unloadingLlm')
-  const busy = llmLoading || llmUnloading
+  const busy = llmLoading || llmUnloading || llmStateLoading
   const { t } = useTranslation()
 
   const selectedModel = useMemo(
