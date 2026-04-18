@@ -575,7 +575,7 @@ function LlmStatusPopover() {
                               aria-label={t('llm.downloadModelAction', {
                                 defaultValue: 'Download',
                               })}
-                              className='text-muted-foreground hover:bg-primary/10 hover:text-primary inline-flex size-5 items-center justify-center rounded-sm opacity-70 transition hover:opacity-100 focus-visible:opacity-100 disabled:pointer-events-none disabled:opacity-40'
+                              className='text-muted-foreground hover:bg-primary/10 hover:text-primary inline-flex size-5 items-center justify-center rounded-sm opacity-70 transition-opacity group-data-[highlighted]/item:opacity-100 group-focus-within/item:opacity-100 hover:opacity-100 focus-visible:opacity-100 disabled:pointer-events-none disabled:opacity-40'
                             >
                               <DownloadIcon className='size-3.5' />
                             </button>
@@ -595,7 +595,7 @@ function LlmStatusPopover() {
                               aria-label={t('llm.deleteModelAction', {
                                 defaultValue: 'Delete',
                               })}
-                              className='text-destructive hover:bg-destructive/10 hover:text-destructive inline-flex size-5 items-center justify-center rounded-sm opacity-70 transition hover:opacity-100 focus-visible:opacity-100 disabled:pointer-events-none disabled:opacity-40'
+                              className='text-destructive hover:bg-destructive/10 hover:text-destructive inline-flex size-5 items-center justify-center rounded-sm opacity-70 transition-opacity group-data-[highlighted]/item:opacity-100 group-focus-within/item:opacity-100 hover:opacity-100 focus-visible:opacity-100 disabled:pointer-events-none disabled:opacity-40'
                             >
                               <Trash2Icon className='size-3.5' />
                             </button>
