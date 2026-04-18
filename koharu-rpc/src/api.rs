@@ -58,8 +58,12 @@ pub fn api() -> (axum::Router<ApiState>, utoipa::openapi::OpenApi) {
         .routes(routes!(patch_text_block, delete_text_block))
         .routes(routes!(export_document))
         .routes(routes!(batch_export))
-        .routes(routes!(get_llm, load_llm, unload_llm))
-        .routes(routes!(delete_local_llm_model))
+        .routes(routes!(
+            get_llm,
+            load_llm,
+            unload_llm,
+            delete_local_llm_model
+        ))
         .routes(routes!(get_llm_catalog))
         .routes(routes!(start_pipeline))
         .routes(routes!(list_jobs))
@@ -1128,8 +1132,15 @@ async fn get_llm(State(state): State<ApiState>) -> ApiResult<Json<LlmState>> {
     Ok(Json(resources.llm.snapshot().await))
 }
 
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+#[serde(rename_all = "camelCase")]
+struct DeleteLlmModelQuery {
+    model_id: String,
+}
+
 #[utoipa::path(
-    put,
+    post,
     path = "/llm",
     operation_id = "loadLlm",
     tag = "llm",
@@ -1151,7 +1162,7 @@ async fn load_llm(
 }
 
 #[utoipa::path(
-    delete,
+    patch,
     path = "/llm",
     operation_id = "unloadLlm",
     tag = "llm",
@@ -1169,25 +1180,23 @@ async fn unload_llm(State(state): State<ApiState>) -> ApiResult<Json<LlmState>> 
 
 #[utoipa::path(
     delete,
-    path = "/llm/local/{model_id}",
+    path = "/llm",
     operation_id = "deleteLocalLlmModel",
     tag = "llm",
-    params(
-        ("model_id" = String, Path, description = "Local model ID"),
-    ),
+    params(DeleteLlmModelQuery),
     responses(
         (status = 204),
         (status = 400, body = ApiError),
         (status = 503, body = ApiError),
     ),
 )]
-#[tracing::instrument(level = "info", skip_all, fields(%model_id))]
+#[tracing::instrument(level = "info", skip_all)]
 async fn delete_local_llm_model(
     State(state): State<ApiState>,
-    Path(model_id): Path<String>,
+    Query(query): Query<DeleteLlmModelQuery>,
 ) -> ApiResult<StatusCode> {
     let resources = state.resources()?;
-    llm::delete_local_model(resources, &model_id).await?;
+    llm::delete_local_model(resources, &query.model_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

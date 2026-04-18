@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, type PointerEvent } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent, type PointerEvent } from 'react'
 import * as SelectPrimitive from '@radix-ui/react-select'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -399,8 +399,8 @@ function LlmStatusPopover() {
     event.stopPropagation()
   }
 
-  const handleDeleteButtonPointerUp = (
-    event: PointerEvent<HTMLButtonElement>,
+  const handleDeleteButtonClick = (
+    event: MouseEvent<HTMLButtonElement>,
     modelEntry: SelectableLlmModel,
   ) => {
     event.preventDefault()
@@ -408,8 +408,8 @@ function LlmStatusPopover() {
     handleRequestDeleteModel(modelEntry)
   }
 
-  const handleDownloadButtonPointerUp = (
-    event: PointerEvent<HTMLButtonElement>,
+  const handleDownloadButtonClick = (
+    event: MouseEvent<HTMLButtonElement>,
     modelEntry: SelectableLlmModel,
   ) => {
     event.preventDefault()
@@ -565,8 +565,8 @@ function LlmStatusPopover() {
                               type='button'
                               data-testid={`llm-model-download-${index}`}
                               onPointerDown={handleDeleteButtonPointerDown}
-                              onPointerUp={(event) =>
-                                handleDownloadButtonPointerUp(event, {
+                              onClick={(event) =>
+                                handleDownloadButtonClick(event, {
                                   model,
                                   provider,
                                 })
@@ -575,7 +575,7 @@ function LlmStatusPopover() {
                               aria-label={t('llm.downloadModelAction', {
                                 defaultValue: 'Download',
                               })}
-                              className='text-muted-foreground hover:bg-primary/10 hover:text-primary pointer-events-none inline-flex size-5 items-center justify-center rounded-sm opacity-0 transition group-hover/item:pointer-events-auto group-hover/item:opacity-100 disabled:pointer-events-none'
+                              className='text-muted-foreground hover:bg-primary/10 hover:text-primary inline-flex size-5 items-center justify-center rounded-sm opacity-70 transition hover:opacity-100 focus-visible:opacity-100 disabled:pointer-events-none disabled:opacity-40'
                             >
                               <DownloadIcon className='size-3.5' />
                             </button>
@@ -585,8 +585,8 @@ function LlmStatusPopover() {
                               type='button'
                               data-testid={`llm-model-delete-${index}`}
                               onPointerDown={handleDeleteButtonPointerDown}
-                              onPointerUp={(event) =>
-                                handleDeleteButtonPointerUp(event, {
+                              onClick={(event) =>
+                                handleDeleteButtonClick(event, {
                                   model,
                                   provider,
                                 })
@@ -595,7 +595,7 @@ function LlmStatusPopover() {
                               aria-label={t('llm.deleteModelAction', {
                                 defaultValue: 'Delete',
                               })}
-                              className='text-destructive hover:bg-destructive/10 hover:text-destructive pointer-events-none inline-flex size-5 items-center justify-center rounded-sm opacity-0 transition group-hover/item:pointer-events-auto group-hover/item:opacity-100 disabled:pointer-events-none'
+                              className='text-destructive hover:bg-destructive/10 hover:text-destructive inline-flex size-5 items-center justify-center rounded-sm opacity-70 transition hover:opacity-100 focus-visible:opacity-100 disabled:pointer-events-none disabled:opacity-40'
                             >
                               <Trash2Icon className='size-3.5' />
                             </button>

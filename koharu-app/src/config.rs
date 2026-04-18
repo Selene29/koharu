@@ -55,6 +55,7 @@ impl<'de> Deserialize<'de> for RedactedSecret {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 #[serde(default)]
 pub struct AppConfig {
+    #[schema(default = schema_default_data_config)]
     pub data: DataConfig,
     pub http: HttpConfig,
     pub pipeline: PipelineConfig,
@@ -136,6 +137,12 @@ impl Default for HttpConfig {
             read_timeout: 300,
             max_retries: 3,
         }
+    }
+}
+
+fn schema_default_data_config() -> DataConfig {
+    DataConfig {
+        path: Utf8PathBuf::from("/path/to/koharu"),
     }
 }
 

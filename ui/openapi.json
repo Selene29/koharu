@@ -81,7 +81,7 @@
                         }
                       ],
                       "default": {
-                        "path": "C:\\Users\\fffon\\AppData\\Local\\Koharu"
+                        "path": "/path/to/koharu"
                       }
                     },
                     "http": {
@@ -155,7 +155,7 @@
                       }
                     ],
                     "default": {
-                      "path": "C:\\Users\\fffon\\AppData\\Local\\Koharu"
+                      "path": "/path/to/koharu"
                     }
                   },
                   "http": {
@@ -215,7 +215,7 @@
                         }
                       ],
                       "default": {
-                        "path": "C:\\Users\\fffon\\AppData\\Local\\Koharu"
+                        "path": "/path/to/koharu"
                       }
                     },
                     "http": {
@@ -1784,7 +1784,7 @@
           }
         }
       },
-      "put": {
+      "post": {
         "tags": [
           "llm"
         ],
@@ -1836,6 +1836,47 @@
         "tags": [
           "llm"
         ],
+        "operationId": "deleteLocalLlmModel",
+        "parameters": [
+          {
+            "name": "modelId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "llm"
+        ],
         "operationId": "unloadLlm",
         "responses": {
           "200": {
@@ -1874,50 +1915,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LlmCatalog"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/llm/local/{model_id}": {
-      "delete": {
-        "tags": [
-          "llm"
-        ],
-        "operationId": "deleteLocalLlmModel",
-        "parameters": [
-          {
-            "name": "model_id",
-            "in": "path",
-            "description": "Local model ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": ""
-          },
-          "400": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }

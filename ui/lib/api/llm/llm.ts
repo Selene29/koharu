@@ -139,7 +139,7 @@ export const loadLlm = async (
 ): Promise<LlmState> => {
   return fetchApi<LlmState>(getLoadLlmUrl(), {
     ...options,
-    method: 'PUT',
+    method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(llmLoadRequest),
   })
@@ -208,7 +208,7 @@ export const getUnloadLlmUrl = () => {
 export const unloadLlm = async (options?: RequestInit): Promise<LlmState> => {
   return fetchApi<LlmState>(getUnloadLlmUrl(), {
     ...options,
-    method: 'DELETE',
+    method: 'PATCH',
   })
 }
 
@@ -361,7 +361,8 @@ export function useGetLlmCatalog<
 }
 
 export const getDeleteLocalLlmModelUrl = (modelId: string) => {
-  return `/api/v1/llm/local/${modelId}`
+  const searchParams = new URLSearchParams({ modelId })
+  return `/api/v1/llm?${searchParams.toString()}`
 }
 
 export const deleteLocalLlmModel = async (

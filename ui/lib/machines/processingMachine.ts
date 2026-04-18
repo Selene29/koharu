@@ -738,11 +738,7 @@ export const processingMachine = setup({
           },
           on: {
             PROGRESS: {
-              actions: [
-                'updateProgress',
-                'updateProgressBar',
-                'invalidateLlmQueries',
-              ],
+              actions: ['updateProgress', 'updateProgressBar'],
             },
             DONE: {
               target: '#processing.idle',
