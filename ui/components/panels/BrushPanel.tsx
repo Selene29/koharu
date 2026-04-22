@@ -21,7 +21,7 @@ export function BrushPanel() {
   return (
     <div className='flex flex-col border-b border-border' data-testid='panels-brush'>
       <div className='space-y-2 p-3'>
-        <p className='text-[10px] font-semibold text-muted-foreground uppercase tracking-wider'>
+        <p className='text-[10px] font-semibold tracking-wider text-muted-foreground uppercase'>
           {t('toolbar.brushSize')}
         </p>
         <div className='flex items-center gap-3'>
@@ -41,8 +41,7 @@ export function BrushPanel() {
               </span>
             </TooltipTrigger>
             <TooltipContent side='left'>
-              {t('toolbar.brushSize')} ({decreaseShortcut}{' '}
-              {increaseShortcut})
+              {t('toolbar.brushSize')} ({decreaseShortcut} {increaseShortcut})
             </TooltipContent>
           </Tooltip>
         </div>
@@ -58,7 +57,7 @@ export function BrushPanel() {
             className='overflow-hidden border-t border-border/50 bg-muted/20'
           >
             <div className='space-y-2 p-3'>
-              <p className='text-[10px] font-semibold text-muted-foreground uppercase tracking-wider'>
+              <p className='text-[10px] font-semibold tracking-wider text-muted-foreground uppercase'>
                 {t('toolbar.brushColor')}
               </p>
               <div className='flex items-center gap-3'>
@@ -72,7 +71,7 @@ export function BrushPanel() {
                   inputTestId='brush-color-input'
                   pickButtonTestId='brush-color-pick'
                 />
-                <span className='text-xs font-medium text-muted-foreground tabular-nums uppercase'>
+                <span className='text-xs font-medium text-muted-foreground uppercase tabular-nums'>
                   {brushColor}
                 </span>
               </div>
