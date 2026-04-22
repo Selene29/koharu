@@ -1,6 +1,7 @@
 'use client'
 
 import { AnimatePresence, motion } from 'motion/react'
+import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ColorPicker } from '@/components/ui/color-picker'
@@ -18,6 +19,14 @@ export function BrushPanel() {
   const setBrushConfig = usePreferencesStore((state) => state.setBrushConfig)
   const { t } = useTranslation()
 
+  // Local state for live slider dragging to avoid excessive storage writes/re-renders
+  const [localSize, setLocalSize] = React.useState(brushSize)
+
+  // Sync local size when external store changes (e.g. via keyboard shortcuts)
+  React.useEffect(() => {
+    setLocalSize(brushSize)
+  }, [brushSize])
+
   return (
     <div className='flex flex-col border-b border-border' data-testid='panels-brush'>
       <div className='space-y-2 p-3'>
@@ -31,13 +40,14 @@ export function BrushPanel() {
             min={8}
             max={128}
             step={4}
-            value={[brushSize]}
-            onValueChange={(vals) => setBrushConfig({ size: vals[0] ?? brushSize })}
+            value={[localSize]}
+            onValueChange={(vals) => setLocalSize(vals[0] ?? localSize)}
+            onValueCommit={(vals) => setBrushConfig({ size: vals[0] ?? localSize })}
           />
           <Tooltip>
             <TooltipTrigger asChild>
               <span className='min-w-10 cursor-help text-right text-xs text-muted-foreground tabular-nums'>
-                {brushSize}px
+                {localSize}px
               </span>
             </TooltipTrigger>
             <TooltipContent side='left'>
@@ -50,6 +60,7 @@ export function BrushPanel() {
       <AnimatePresence initial={false}>
         {showColorPicker && (
           <motion.div
+            data-testid='brush-color-section'
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
