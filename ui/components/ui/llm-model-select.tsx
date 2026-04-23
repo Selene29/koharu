@@ -1,8 +1,15 @@
 'use client'
 
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { CheckIcon, ChevronDownIcon, SearchIcon } from 'lucide-react'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import {
+  CheckCircleIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  DownloadIcon,
+  SearchIcon,
+  Trash2Icon,
+} from 'lucide-react'
+import { useCallback, useMemo, useRef, useState, type MouseEvent } from 'react'
 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -17,6 +24,24 @@ export type LlmModelOption = {
   provider?: LlmProviderCatalog
 }
 
+/** Sort priority: downloaded local first, then providers, then non-downloaded local. */
+function selectablePriority({ model, provider }: LlmModelOption): number {
+  if (!provider && model.downloaded) return 0
+  if (provider) return 1
+  return 2
+}
+
+function sortOptions(options: LlmModelOption[]): LlmModelOption[] {
+  return options
+    .map((entry, index) => ({ entry, index }))
+    .sort((a, b) => {
+      const p = selectablePriority(a.entry) - selectablePriority(b.entry)
+      if (p !== 0) return p
+      return a.index - b.index
+    })
+    .map(({ entry }) => entry)
+}
+
 type LlmModelSelectProps = {
   /** Stable key identifying the currently-selected model. */
   value?: string
@@ -29,6 +54,10 @@ type LlmModelSelectProps = {
   className?: string
   triggerClassName?: string
   onChange: (key: string) => void
+  /** Called when the user clicks the delete button on a downloaded local model. */
+  onDeleteModel?: (option: LlmModelOption) => void
+  /** Called when the user clicks the download button on a non-downloaded local model. */
+  onDownloadModel?: (option: LlmModelOption) => void
   'data-testid'?: string
 }
 
@@ -44,6 +73,8 @@ export function LlmModelSelect({
   className,
   triggerClassName,
   onChange,
+  onDeleteModel,
+  onDownloadModel,
   ...props
 }: LlmModelSelectProps) {
   const [open, setOpen] = useState(false)
@@ -51,10 +82,12 @@ export function LlmModelSelect({
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const sorted = useMemo(() => sortOptions(options), [options])
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return options
-    return options.filter(({ model, provider }) => {
+    if (!q) return sorted
+    return sorted.filter(({ model, provider }) => {
       const fields = [
         model.name,
         model.target.modelId,
@@ -64,7 +97,7 @@ export function LlmModelSelect({
       ]
       return fields.some((x) => x?.toLowerCase().includes(q))
     })
-  }, [options, search])
+  }, [sorted, search])
 
   const virtualizer = useVirtualizer({
     count: filtered.length,
@@ -107,8 +140,6 @@ export function LlmModelSelect({
         <ChevronDownIcon className='size-3.5 shrink-0 opacity-60' />
       </PopoverTrigger>
       <PopoverContent
-        // Matches the enclosing LLM popover (w-64) — keep compact and
-        // rely on the badge + short-name rules to stay legible.
         className={cn(
           'w-64 min-w-(--radix-popover-trigger-width) overflow-hidden border-primary/15 p-0 shadow-lg',
           className,
@@ -151,6 +182,8 @@ export function LlmModelSelect({
                     setOpen(false)
                     setSearch('')
                   }}
+                  onDeleteModel={onDeleteModel}
+                  onDownloadModel={onDownloadModel}
                 />
               )
             })}
@@ -207,19 +240,32 @@ function ModelRow({
   selected,
   style,
   onClick,
+  onDeleteModel,
+  onDownloadModel,
 }: {
   option: LlmModelOption
   selected: boolean
   style: React.CSSProperties
   onClick: () => void
+  onDeleteModel?: (option: LlmModelOption) => void
+  onDownloadModel?: (option: LlmModelOption) => void
 }) {
   const { model, provider } = option
+  const isLocal = !provider
+  const isDownloaded = isLocal && model.downloaded
+
+  const handleActionClick = (e: MouseEvent, action: () => void) => {
+    e.preventDefault()
+    e.stopPropagation()
+    action()
+  }
+
   return (
     <button
       type='button'
       title={model.name}
       className={cn(
-        'absolute left-0 flex w-full cursor-default items-center gap-1.5 px-2 pr-7 text-left text-xs transition-colors select-none',
+        'absolute left-0 flex w-full cursor-default items-center gap-1.5 px-2 pr-2 text-left text-xs transition-colors select-none',
         selected
           ? 'bg-accent text-accent-foreground ring-1 ring-primary/30 ring-inset'
           : 'hover:bg-accent/60 hover:text-accent-foreground',
@@ -228,10 +274,42 @@ function ModelRow({
       onClick={onClick}
     >
       {provider && <ProviderBadge label={providerBadgeLabel(provider)} />}
-      <span className='truncate'>{shortModelName(model.name)}</span>
-      {selected && (
-        <CheckIcon className='absolute top-1/2 right-2 size-3 -translate-y-1/2 text-primary' />
-      )}
+      <span className='min-w-0 flex-1 truncate'>{shortModelName(model.name)}</span>
+      <span className='flex shrink-0 items-center gap-1'>
+        {isLocal && !isDownloaded && onDownloadModel && (
+          <span
+            role='button'
+            tabIndex={-1}
+            title='Download'
+            className='inline-flex size-5 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity hover:bg-primary/10 hover:text-primary group-hover:opacity-100 [button:hover>&]:opacity-100'
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => handleActionClick(e, () => onDownloadModel(option))}
+          >
+            <DownloadIcon className='size-3.5' />
+          </span>
+        )}
+        {isDownloaded && onDeleteModel && (
+          <span
+            role='button'
+            tabIndex={-1}
+            title='Delete'
+            className='inline-flex size-5 items-center justify-center rounded-sm text-destructive opacity-0 transition-opacity hover:bg-destructive/10 [button:hover>&]:opacity-100'
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => handleActionClick(e, () => onDeleteModel(option))}
+          >
+            <Trash2Icon className='size-3.5' />
+          </span>
+        )}
+        {isDownloaded && (
+          <span
+            title='Downloaded'
+            className='flex size-4 items-center justify-center rounded bg-emerald-500/12 text-emerald-600'
+          >
+            <CheckCircleIcon className='size-3.5' />
+          </span>
+        )}
+        {selected && <CheckIcon className='size-3 text-primary' />}
+      </span>
     </button>
   )
 }

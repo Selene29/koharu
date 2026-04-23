@@ -294,7 +294,7 @@ impl Model {
 /// configuration; Static providers always return the baked-in list.
 pub async fn catalog(config: &crate::config::AppConfig, runtime: &RuntimeManager) -> LlmCatalog {
     LlmCatalog {
-        local_models: local_catalog_models(),
+        local_models: local_catalog_models(runtime),
         providers: provider_catalog(config, runtime).await,
     }
 }
@@ -307,12 +307,13 @@ fn provider_target(provider_id: &str, model_id: &str) -> LlmTarget {
     }
 }
 
-fn local_catalog_models() -> Vec<LlmCatalogModel> {
+fn local_catalog_models(runtime: &RuntimeManager) -> Vec<LlmCatalogModel> {
     ModelId::iter()
         .map(|model| LlmCatalogModel {
             target: local_target(model),
             name: model.to_string(),
             languages: language_tags(&model.languages()),
+            downloaded: model.is_downloaded(runtime),
         })
         .collect()
 }
@@ -365,6 +366,7 @@ async fn provider_catalog(
                                         target: provider_target(descriptor.id, &m.id),
                                         name: m.name,
                                         languages: descriptor.supported_languages.tags(),
+                                        downloaded: false,
                                     })
                                     .collect(),
                             ),
@@ -407,6 +409,7 @@ fn static_provider_models(descriptor: &ProviderDescriptor) -> Vec<LlmCatalogMode
                 target: provider_target(descriptor.id, m.id),
                 name: m.name.to_string(),
                 languages: descriptor.supported_languages.tags(),
+                downloaded: false,
             })
             .collect(),
         ProviderCatalogModels::Dynamic(_) => Vec::new(),
@@ -430,6 +433,41 @@ pub fn provider_config_from_settings(
         temperature: None,
         max_tokens: None,
     }
+}
+
+// ---------------------------------------------------------------------------
+// Delete local model
+// ---------------------------------------------------------------------------
+
+pub async fn delete_local_model(
+    llm: &Model,
+    runtime: &RuntimeManager,
+    model_id: &str,
+) -> Result<()> {
+    let model: ModelId =
+        std::str::FromStr::from_str(model_id).map_err(|_| {
+            anyhow::anyhow!("unknown local model id: {model_id}")
+        })?;
+    let target = local_target(model);
+
+    // If this model is currently loaded, offload it first.
+    if llm.current_target().await.as_ref() == Some(&target) {
+        llm.offload().await;
+    }
+
+    let repo_path = model.cache_repo_path(runtime);
+    match tokio::fs::metadata(&repo_path).await {
+        Ok(metadata) if metadata.is_dir() => {
+            tokio::fs::remove_dir_all(&repo_path).await?;
+        }
+        Ok(_) => {
+            tokio::fs::remove_file(&repo_path).await?;
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
+    }
+
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------

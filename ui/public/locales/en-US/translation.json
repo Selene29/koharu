@@ -153,6 +153,13 @@
     "loadingModel": "Loading LLM model",
     "statusReady": "LLM Ready",
     "statusIdle": "LLM Not Loaded",
+    "downloadedBadge": "Downloaded",
+    "deleteModelFailed": "Failed to delete downloaded model",
+    "deleteModelTitle": "Delete downloaded model?",
+    "deleteModelDescription": "This removes the local model file. Loading the model again will download it again.",
+    "deleteModelDeleting": "Deleting...",
+    "deleteModelAction": "Delete",
+    "downloadModelAction": "Download",
     "languages": {
       "en-US": "English",
       "zh-CN": "Simplified Chinese",
