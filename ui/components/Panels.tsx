@@ -4,7 +4,6 @@ import { LayersIcon, SlidersHorizontalIcon } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 
-import { BrushPanel } from '@/components/panels/BrushPanel'
 import { LayersPanel } from '@/components/panels/LayersPanel'
 import { RenderControlsPanel } from '@/components/panels/RenderControlsPanel'
 import { TextBlocksPanel } from '@/components/panels/TextBlocksPanel'
@@ -14,9 +13,6 @@ import { useEditorUiStore } from '@/lib/stores/editorUiStore'
 
 export function Panels() {
   const { t } = useTranslation()
-  const isBrushTool = useEditorUiStore(
-    (state) => state.mode === 'brush' || state.mode === 'eraser' || state.mode === 'repairBrush',
-  )
 
   return (
     <div className='flex h-full min-h-0 w-full flex-col border-l bg-muted/50'>
@@ -62,21 +58,6 @@ export function Panels() {
           </ScrollArea>
         </TabsContent>
       </Tabs>
-
-      {/* Brush Settings - only visible when brush tools are selected */}
-      <AnimatePresence initial={false}>
-        {isBrushTool && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: 'easeInOut' }}
-            className='overflow-hidden'
-          >
-            <BrushPanel />
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Text Blocks Section - takes remaining space */}
       <TextBlocksPanel />
