@@ -48,6 +48,7 @@ import type {
   Op,
   OpenProjectRequest,
   PageId,
+  PagePatch,
   ProjectSummary,
   ProviderSecretRequest,
   PutMaskResponse,
@@ -2635,6 +2636,19 @@ export const usePutMask = <TError = unknown, TContext = unknown>(
 > => {
   return useMutation(getPutMaskMutationOptions(options), queryClient)
 }
+export const patchPage = async (
+  id: PageId,
+  patch: PagePatch,
+  options?: RequestInit,
+): Promise<void> => {
+  return fetchApi<void>(`/api/v1/pages/${id}`, {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(patch),
+  })
+}
+
 export const getGetPageThumbnailUrl = (id: PageId) => {
   return `/api/v1/pages/${id}/thumbnail`
 }
