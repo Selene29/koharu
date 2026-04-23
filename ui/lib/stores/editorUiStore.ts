@@ -3,6 +3,7 @@
 import { create } from 'zustand'
 
 import type { LlmTarget } from '@/lib/api/schemas'
+import { useActivityLogStore } from '@/lib/stores/activityLogStore'
 import type { RenderEffect, RenderStroke, ToolMode } from '@/lib/types'
 
 /**
@@ -128,6 +129,7 @@ export const useEditorUiStore = create<EditorUiState>((set) => ({
 
   showError: (message) => {
     clearDismissTimer()
+    useActivityLogStore.getState().push('error', message)
     set({ error: { id: Date.now(), message } })
     dismissTimer = setTimeout(() => {
       dismissTimer = null

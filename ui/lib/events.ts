@@ -5,6 +5,7 @@ import { EventStreamContentType, fetchEventSource } from '@microsoft/fetch-event
 import { getGetCurrentLlmQueryKey, getGetSceneJsonQueryKey } from '@/lib/api/default/default'
 import type { AppEvent } from '@/lib/api/schemas'
 import { queryClient } from '@/lib/queryClient'
+import { useActivityLogStore } from '@/lib/stores/activityLogStore'
 import { useDownloadsStore } from '@/lib/stores/downloadsStore'
 import { useEditorUiStore } from '@/lib/stores/editorUiStore'
 import { useEventsStore } from '@/lib/stores/eventsStore'
@@ -123,6 +124,8 @@ function invalidateScene(): void {
 }
 
 function dispatch(event: AppEvent): void {
+  const log = useActivityLogStore.getState()
+
   switch (event.event) {
     case 'snapshot':
       // Authoritative replacement of the long-running-process mirrors.
@@ -135,6 +138,7 @@ function dispatch(event: AppEvent): void {
     case 'jobStarted':
       useJobsStore.getState().started(event.id, event.kind)
       lastPageByJob.set(event.id, -1)
+      log.push('info', `Pipeline started`)
       return
 
     case 'jobProgress':
@@ -148,36 +152,63 @@ function dispatch(event: AppEvent): void {
         if (event.currentPage !== prev) {
           lastPageByJob.set(event.jobId, event.currentPage)
           if (prev >= 0) invalidateScene()
+          const step = event.step ?? 'processing'
+          log.push('info', `Page ${event.currentPage + 1}/${event.totalPages} — ${step}`)
         }
       }
       return
 
     case 'jobWarning':
       useJobsStore.getState().warning(event)
+      log.push('warn', `Step "${event.stepId}" failed on page ${event.pageIndex + 1}`, event.message)
       return
 
-    case 'jobFinished':
+    case 'jobFinished': {
       useJobsStore.getState().finished(event.id, event.status, event.error)
       if (event.status === 'failed' && event.error) {
         useEditorUiStore.getState().showError(event.error)
       }
       lastPageByJob.delete(event.id)
-      // Pipelines mutate the scene server-side without op-level SSE frames;
-      // refetch so the final page's nodes + blobs land in the UI.
       invalidateScene()
+      if (event.status === 'completed') {
+        log.push('info', 'Pipeline completed')
+      } else if (event.status === 'completed_with_errors') {
+        log.push('warn', 'Pipeline completed with warnings', event.error ?? undefined)
+      } else if (event.status === 'cancelled') {
+        log.push('info', 'Pipeline cancelled')
+      } else if (event.status === 'failed') {
+        log.push('error', 'Pipeline failed', event.error ?? undefined)
+      }
       return
+    }
 
-    case 'downloadProgress':
+    case 'downloadProgress': {
       useDownloadsStore.getState().progress(event)
+      const ds = event.status
+      if (ds.status === 'started') {
+        log.push('info', `Downloading ${event.filename}`)
+      } else if (ds.status === 'completed') {
+        log.push('info', `Download complete: ${event.filename}`)
+      } else if (ds.status === 'failed') {
+        log.push('error', `Download failed: ${event.filename}`, ds.reason)
+      }
       return
+    }
 
     case 'llmLoading':
+      log.push('info', `Loading LLM: ${event.target.modelId}`)
+      void queryClient.invalidateQueries({ queryKey: getGetCurrentLlmQueryKey() })
+      return
     case 'llmLoaded':
+      log.push('info', `LLM loaded: ${event.target.modelId}`)
+      void queryClient.invalidateQueries({ queryKey: getGetCurrentLlmQueryKey() })
+      return
     case 'llmFailed':
+      log.push('error', `LLM failed to load`, event.target?.modelId ?? undefined)
+      void queryClient.invalidateQueries({ queryKey: getGetCurrentLlmQueryKey() })
+      return
     case 'llmUnloaded':
-      // `GET /llm/current` is the source of truth — the transition events
-      // just tell us "refetch now". Any toolbar / catalog consumer
-      // subscribed via `useGetCurrentLlm` picks up the new state.
+      log.push('info', 'LLM unloaded')
       void queryClient.invalidateQueries({ queryKey: getGetCurrentLlmQueryKey() })
       return
 

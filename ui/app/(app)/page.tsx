@@ -15,6 +15,7 @@ import { AppInitializationSkeleton } from '@/components/AppInitializationSkeleto
 import { Workspace, StatusBar } from '@/components/Canvas'
 import { Navigator } from '@/components/Navigator'
 import { Panels } from '@/components/Panels'
+import { ActivityLogPanel } from '@/components/panels/ActivityLogPanel'
 import { WelcomeScreen } from '@/components/WelcomeScreen'
 import { useScene } from '@/hooks/useScene'
 import { useGetMeta } from '@/lib/api/default/default'
@@ -99,7 +100,15 @@ export default function Page() {
         <Panel id='center' minSize={480}>
           <AppErrorBoundary>
             <div className='flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden'>
-              <Workspace />
+              <Group orientation='vertical' className='flex min-h-0 flex-1'>
+                <Panel minSize={200}>
+                  <Workspace />
+                </Panel>
+                <Separator className='h-1 bg-border/40 transition-colors hover:bg-border' />
+                <Panel defaultSize={150} minSize={80} maxSize={400} collapsible collapsedSize={0}>
+                  <ActivityLogPanel />
+                </Panel>
+              </Group>
               <StatusBar />
             </div>
           </AppErrorBoundary>
