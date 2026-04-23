@@ -2,7 +2,7 @@ name: Build
 
 on:
   push:
-    branches: ['main']
+    branches: ['main', 'local-main']
   pull_request:
 
 permissions:
