@@ -4,6 +4,7 @@
 
 pub mod config;
 pub mod downloads;
+pub mod engines;
 pub mod fonts;
 pub mod history;
 pub mod llm;

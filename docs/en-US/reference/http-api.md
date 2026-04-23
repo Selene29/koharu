@@ -131,6 +131,14 @@ Useful request details:
 - `PUT /llm` accepts `target` plus optional `options { temperature, maxTokens, customSystemPrompt }`
 - provider targets use `{ kind: "provider", providerId, modelId }`; local targets use `{ kind: "local", modelId }`
 
+## Engine cache management
+
+| Method   | Path                                          | Purpose        |
+| -------- | --------------------------------------------- | -------------- |
+| `DELETE` | `/engines/cache?engine={detect,ocr,inpaint,all}` | evict cached engine instances to free GPU/CPU memory |
+
+Supported engine values: `detect` (detector + segmenter + font-detector + bubble-segmenter), `ocr`, `inpaint`, `all` (clears everything).
+
 ## Provider configuration
 
 Provider and runtime settings now live under `GET /config` and `PUT /config`.

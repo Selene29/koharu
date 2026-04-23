@@ -1757,6 +1757,21 @@ export const deleteLocalLlmModel = async (
   })
 }
 
+export const getUnloadEngineUrl = (engine: string) => {
+  const searchParams = new URLSearchParams({ engine })
+  return `/api/v1/engines/cache?${searchParams.toString()}`
+}
+
+export const unloadEngine = async (
+  engine: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return fetchApi<void>(getUnloadEngineUrl(engine), {
+    ...options,
+    method: 'DELETE',
+  })
+}
+
 export const getGetMetaUrl = () => {
   return `/api/v1/meta`
 }
