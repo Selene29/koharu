@@ -129,6 +129,14 @@ Body fields:
 
 The response carries an `operationId`. Progress and completion arrive on `/events` as `JobStarted`, `JobProgress`, `JobWarning`, and `JobFinished`.
 
+### Engine cache management
+
+| Method   | Path                                             | Purpose                                              |
+| -------- | ------------------------------------------------ | ---------------------------------------------------- |
+| `DELETE` | `/engines/cache?engine={detect,ocr,inpaint,all}` | evict cached engine instances to free GPU/CPU memory |
+
+Supported engine values: `detect` (detector + segmenter + font-detector + bubble-segmenter), `ocr`, `inpaint`, `all` (clears everything).
+
 ### Operations
 
 `/operations` is the unified registry for in-flight and recently-completed jobs (pipelines + downloads).
