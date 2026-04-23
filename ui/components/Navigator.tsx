@@ -1,15 +1,15 @@
 'use client'
 
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { LayoutGridIcon } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { CheckCircleIcon, LayoutGridIcon } from 'lucide-react'
+import { useMemo, useRef, useState, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PageManagerDialog } from '@/components/PageManagerDialog'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useScene } from '@/hooks/useScene'
-import { getGetPageThumbnailUrl } from '@/lib/api/default/default'
+import { getGetPageThumbnailUrl, patchPage } from '@/lib/api/default/default'
 import { useSelectionStore } from '@/lib/stores/selectionStore'
 
 const THUMBNAIL_DPR =
@@ -93,6 +93,7 @@ export function Navigator() {
                 <PagePreview
                   index={virtualRow.index}
                   pageId={page?.id}
+                  completed={page?.completed ?? false}
                   selected={page?.id === pageId}
                   onSelect={() => page && setPage(page.id)}
                 />
@@ -110,12 +111,19 @@ export function Navigator() {
 type PagePreviewProps = {
   index: number
   pageId?: string
+  completed: boolean
   selected: boolean
   onSelect: () => void
 }
 
-function PagePreview({ index, pageId, selected, onSelect }: PagePreviewProps) {
+function PagePreview({ index, pageId, completed, selected, onSelect }: PagePreviewProps) {
   const src = pageId ? `${getGetPageThumbnailUrl(pageId)}?size=${200 * THUMBNAIL_DPR}` : undefined
+
+  const handleToggleCompleted = (e: MouseEvent) => {
+    e.stopPropagation()
+    if (!pageId) return
+    void patchPage(pageId, { completed: !completed })
+  }
 
   return (
     <Button
@@ -124,7 +132,7 @@ function PagePreview({ index, pageId, selected, onSelect }: PagePreviewProps) {
       data-testid={`navigator-page-${index}`}
       data-page-index={index}
       data-selected={selected}
-      className='flex h-full w-full flex-col gap-0.5 rounded border border-transparent bg-card p-1.5 text-left shadow-sm data-[selected=true]:border-primary'
+      className='relative flex h-full w-full flex-col gap-0.5 rounded border border-transparent bg-card p-1.5 text-left shadow-sm data-[selected=true]:border-primary'
     >
       <div className='flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded'>
         {src ? (
@@ -141,6 +149,20 @@ function PagePreview({ index, pageId, selected, onSelect }: PagePreviewProps) {
       <div className='flex shrink-0 items-center text-xs text-muted-foreground'>
         <div className='mx-auto font-semibold text-foreground'>{index + 1}</div>
       </div>
+      {pageId && (
+        <button
+          type='button'
+          onClick={handleToggleCompleted}
+          title={completed ? 'Mark as incomplete' : 'Mark as complete'}
+          className={`absolute right-2 bottom-7 flex size-5 items-center justify-center rounded-full transition-colors ${
+            completed
+              ? 'bg-emerald-500/20 text-emerald-600 hover:bg-emerald-500/30'
+              : 'bg-muted/80 text-muted-foreground/40 hover:bg-muted hover:text-muted-foreground/70'
+          }`}
+        >
+          <CheckCircleIcon className='size-4' />
+        </button>
+      )}
     </Button>
   )
 }
