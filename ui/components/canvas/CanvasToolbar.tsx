@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  HardDriveDownloadIcon,
   LanguagesIcon,
   LoaderCircleIcon,
   ScanIcon,
@@ -41,6 +42,7 @@ import {
   getGetCurrentLlmQueryKey,
   putCurrentLlm,
   startPipeline,
+  unloadEngine,
   useGetCatalog,
   useGetCurrentLlm,
 } from '@/lib/api/default/default'
@@ -85,6 +87,7 @@ export function CanvasToolbar() {
     <div className='flex items-center gap-2 border-b border-border/60 bg-card px-3 py-2 text-xs text-foreground'>
       <WorkflowButtons />
       <div className='flex-1' />
+      <EngineUnloadPopover />
       <LlmStatusPopover />
     </div>
   )
@@ -522,5 +525,56 @@ function LlmStatusPopover() {
         </AlertDialogContent>
       </AlertDialog>
     </>
+  )
+}
+
+const ENGINE_CATEGORIES = ['detect', 'ocr', 'inpaint', 'all'] as const
+
+function EngineUnloadPopover() {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState<string | null>(null)
+
+  const handleUnload = async (engine: string) => {
+    setBusy(engine)
+    try {
+      await unloadEngine(engine)
+    } catch (e) {
+      useEditorUiStore.getState().showError(String(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant='ghost'
+          size='xs'
+          title={t('engines.unload', { defaultValue: 'Unload engines' })}
+          disabled={busy !== null}
+        >
+          <HardDriveDownloadIcon className='size-4' />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align='end' className='w-40 p-1'>
+        {ENGINE_CATEGORIES.map((cat) => (
+          <Button
+            key={cat}
+            variant='ghost'
+            size='sm'
+            className={`w-full justify-start text-xs ${cat === 'all' ? 'text-destructive' : ''}`}
+            disabled={busy !== null}
+            onClick={() => void handleUnload(cat)}
+          >
+            {busy === cat ? <LoaderCircleIcon className='mr-1.5 size-3 animate-spin' /> : null}
+            {t(`engines.unload${cat.charAt(0).toUpperCase() + cat.slice(1)}`, {
+              defaultValue: cat === 'all' ? 'Unload all' : `Unload ${cat}`,
+            })}
+          </Button>
+        ))}
+      </PopoverContent>
+    </Popover>
   )
 }

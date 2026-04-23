@@ -398,5 +398,12 @@
     },
     "close": "关闭",
     "retry": "重试"
+  },
+  "engines": {
+    "unload": "卸载引擎",
+    "unloadDetect": "卸载检测",
+    "unloadOcr": "卸载 OCR",
+    "unloadInpaint": "卸载修复",
+    "unloadAll": "卸载全部"
   }
 }

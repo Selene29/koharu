@@ -399,5 +399,12 @@
     },
     "close": "Fechar",
     "retry": "Tentar novamente"
+  },
+  "engines": {
+    "unload": "Descarregar motores",
+    "unloadDetect": "Descarregar detecção",
+    "unloadOcr": "Descarregar OCR",
+    "unloadInpaint": "Descarregar inpaint",
+    "unloadAll": "Descarregar tudo"
   }
 }

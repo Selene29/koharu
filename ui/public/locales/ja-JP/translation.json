@@ -398,5 +398,12 @@
     },
     "close": "閉じる",
     "retry": "再試行"
+  },
+  "engines": {
+    "unload": "エンジンをアンロード",
+    "unloadDetect": "検出をアンロード",
+    "unloadOcr": "OCRをアンロード",
+    "unloadInpaint": "修復をアンロード",
+    "unloadAll": "すべてアンロード"
   }
 }
