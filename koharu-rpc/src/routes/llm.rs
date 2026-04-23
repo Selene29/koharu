@@ -5,10 +5,14 @@
 //! - `PUT    /llm/current`   — load the given target (local or provider)
 //! - `DELETE /llm/current`   — unload / release the model
 //! - `GET    /llm/catalog`   — available local + provider-backed models
+//! - `DELETE /llm/models`    — delete a downloaded local model
 
 use axum::Json;
-use axum::extract::State;
+use axum::extract::{Query, State};
+use axum::http::StatusCode;
 use koharu_core::{LlmCatalog, LlmLoadRequest, LlmState, LlmTargetKind};
+use serde::Deserialize;
+use utoipa::IntoParams;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::AppState;
@@ -20,6 +24,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .routes(routes!(put_current_llm))
         .routes(routes!(delete_current_llm))
         .routes(routes!(get_catalog))
+        .routes(routes!(delete_local_model))
 }
 
 #[utoipa::path(get, path = "/llm/current", responses((status = 200, body = LlmState)))]
@@ -63,4 +68,31 @@ async fn delete_current_llm(State(app): State<AppState>) -> ApiResult<axum::http
 async fn get_catalog(State(app): State<AppState>) -> ApiResult<Json<LlmCatalog>> {
     let catalog = koharu_app::llm::catalog(&app.config.load(), &app.runtime).await;
     Ok(Json(catalog))
+}
+
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+#[serde(rename_all = "camelCase")]
+struct DeleteLlmModelQuery {
+    model_id: String,
+}
+
+#[utoipa::path(
+    delete,
+    path = "/llm/models",
+    operation_id = "deleteLocalLlmModel",
+    params(DeleteLlmModelQuery),
+    responses(
+        (status = 204),
+        (status = 400, body = crate::error::ApiError),
+    ),
+)]
+async fn delete_local_model(
+    State(app): State<AppState>,
+    Query(query): Query<DeleteLlmModelQuery>,
+) -> ApiResult<StatusCode> {
+    koharu_app::llm::delete_local_model(&app.llm, &app.runtime, &query.model_id)
+        .await
+        .map_err(|e| ApiError::bad_request(format!("{e:#}")))?;
+    Ok(StatusCode::NO_CONTENT)
 }

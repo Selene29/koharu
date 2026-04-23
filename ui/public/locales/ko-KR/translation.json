@@ -142,6 +142,13 @@
     "loadingModel": "LLM 모델 불러오는 중",
     "statusReady": "LLM 준비됨",
     "statusIdle": "LLM이 로드되지 않음",
+    "downloadedBadge": "다운로드됨",
+    "deleteModelFailed": "다운로드한 모델을 삭제하지 못했습니다",
+    "deleteModelTitle": "다운로드한 모델을 삭제할까요?",
+    "deleteModelDescription": "로컬 모델 파일을 삭제합니다. 다시 로드하면 다시 다운로드됩니다.",
+    "deleteModelDeleting": "삭제 중...",
+    "deleteModelAction": "삭제",
+    "downloadModelAction": "다운로드",
     "languages": {
       "en-US": "영어",
       "zh-CN": "중국어 간체",

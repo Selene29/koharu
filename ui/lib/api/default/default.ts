@@ -2052,6 +2052,22 @@ export const useDeleteCurrentLlm = <TError = unknown, TContext = unknown>(
 ): UseMutationResult<Awaited<ReturnType<typeof deleteCurrentLlm>>, TError, void, TContext> => {
   return useMutation(getDeleteCurrentLlmMutationOptions(options), queryClient)
 }
+
+export const getDeleteLocalLlmModelUrl = (modelId: string) => {
+  const searchParams = new URLSearchParams({ modelId })
+  return `/api/v1/llm/models?${searchParams.toString()}`
+}
+
+export const deleteLocalLlmModel = async (
+  modelId: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return fetchApi<void>(getDeleteLocalLlmModelUrl(modelId), {
+    ...options,
+    method: 'DELETE',
+  })
+}
+
 export const getGetMetaUrl = () => {
   return `/api/v1/meta`
 }

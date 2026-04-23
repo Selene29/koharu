@@ -136,6 +136,13 @@
     "loadingModel": "LLM modeli yükleniyor",
     "statusReady": "LLM Hazır",
     "statusIdle": "LLM Yüklenmedi",
+    "downloadedBadge": "İndirildi",
+    "deleteModelFailed": "İndirilen model silinemedi",
+    "deleteModelTitle": "İndirilen model silinsin mi?",
+    "deleteModelDescription": "Bu işlem yerel model dosyasını kaldırır. Modeli tekrar yüklersen yeniden indirilir.",
+    "deleteModelDeleting": "Siliniyor...",
+    "deleteModelAction": "Sil",
+    "downloadModelAction": "İndir",
     "languages": {
       "en-US": "İngilizce",
       "zh-CN": "Basitleştirilmiş Çince",
