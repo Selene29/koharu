@@ -138,6 +138,14 @@ impl Registry {
         self.engines.write().clear();
     }
 
+    /// Remove specific engines from the cache by ID, freeing their resources.
+    pub fn evict(&self, ids: &[&str]) {
+        let mut engines = self.engines.write();
+        for id in ids {
+            engines.remove(*id);
+        }
+    }
+
     /// Find engine descriptor by id.
     pub fn find(id: &str) -> Result<&'static EngineInfo> {
         Self::catalog()

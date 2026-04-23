@@ -38,6 +38,7 @@ fn app_api() -> OpenApiRouter<ApiState> {
         .merge(routes::fonts::router())
         .merge(routes::llm::router())
         .merge(routes::ai::router())
+        .merge(routes::engines::router())
         .merge(routes::pipelines::router())
         .merge(binary::router())
 }
