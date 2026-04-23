@@ -27,8 +27,13 @@ const MODEL_FILENAME: &str = "PaddleOCR-VL-1.5.gguf";
 const MMPROJ_FILENAME: &str = "PaddleOCR-VL-1.5-mmproj.gguf";
 const DEFAULT_MEDIA_MARKER: &str = "<__media__>";
 const DEFAULT_GPU_LAYERS: u32 = 1000;
-const DEFAULT_MAX_NEW_TOKENS: usize = 128;
+const DEFAULT_MAX_NEW_TOKENS: usize = 256;
+pub const DEFAULT_REPETITION_PENALTY: f32 = 1.2;
+const DEFAULT_REPETITION_PENALTY_LAST_N: i32 = -1;
 const MAX_UBATCH: u32 = 512;
+const OCR_REPEAT_MAX_UNIT_CHARS: usize = 12;
+const OCR_REPEAT_MIN_REPETITIONS: usize = 4;
+const OCR_REPEAT_MIN_TOTAL_CHARS: usize = 12;
 
 koharu_runtime::declare_hf_model_package!(
     id: "model:paddleocr-vl:weights",
@@ -81,6 +86,22 @@ pub struct PaddleOcrVlOutput {
     pub processed_height: u32,
     pub grid_thw: [u32; 3],
     pub num_image_tokens: usize,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaddleOcrVlGenerateOptions {
+    pub max_new_tokens: usize,
+    pub repetition_penalty: f32,
+}
+
+impl Default for PaddleOcrVlGenerateOptions {
+    fn default() -> Self {
+        Self {
+            max_new_tokens: DEFAULT_MAX_NEW_TOKENS,
+            repetition_penalty: DEFAULT_REPETITION_PENALTY,
+        }
+    }
 }
 
 struct ModelFiles {
@@ -195,7 +216,7 @@ impl PaddleOcrVl {
         image: &DynamicImage,
         task: PaddleOcrVlTask,
     ) -> Result<PaddleOcrVlOutput> {
-        self.inference_with_max_new_tokens(image, task, DEFAULT_MAX_NEW_TOKENS)
+        self.inference_with_options(image, task, &PaddleOcrVlGenerateOptions::default())
     }
 
     pub fn inference_with_max_new_tokens(
@@ -204,6 +225,24 @@ impl PaddleOcrVl {
         task: PaddleOcrVlTask,
         max_new_tokens: usize,
     ) -> Result<PaddleOcrVlOutput> {
+        self.inference_with_options(
+            image,
+            task,
+            &PaddleOcrVlGenerateOptions {
+                max_new_tokens,
+                ..PaddleOcrVlGenerateOptions::default()
+            },
+        )
+    }
+
+    pub fn inference_with_options(
+        &mut self,
+        image: &DynamicImage,
+        task: PaddleOcrVlTask,
+        options: &PaddleOcrVlGenerateOptions,
+    ) -> Result<PaddleOcrVlOutput> {
+        validate_generate_options(options)?;
+        let max_new_tokens = options.max_new_tokens;
         let started = Instant::now();
         let original_width = image.width();
         let original_height = image.height();
@@ -249,10 +288,12 @@ impl PaddleOcrVl {
         let prompt_elapsed = prompt_started.elapsed();
 
         let generation_started = Instant::now();
-        let mut sampler = LlamaSampler::greedy();
+        let mut sampler = build_sampler(options);
         let mut decoder = encoding_rs::UTF_8.new_decoder();
         let mut token_ids = Vec::new();
+        let mut token_text_ends = Vec::new();
         let mut text = String::new();
+        let mut stopped_on_repeat = false;
 
         if max_new_tokens > 0 {
             let decoder_start = self.decoder_start_token();
@@ -273,6 +314,19 @@ impl PaddleOcrVl {
                 token_ids
                     .push(u32::try_from(next_token.0).context("generated token id was negative")?);
                 text.push_str(&decode_token(&self.model, next_token, &mut decoder)?);
+                token_text_ends.push(text.len());
+
+                if let Some(trim_at) = repeated_ocr_suffix_start(&text) {
+                    let keep_tokens = token_text_ends
+                        .iter()
+                        .take_while(|&&end| end <= trim_at)
+                        .count();
+                    token_ids.truncate(keep_tokens);
+                    token_text_ends.truncate(keep_tokens);
+                    text.truncate(trim_at);
+                    stopped_on_repeat = true;
+                    break;
+                }
 
                 if token_ids.len() >= max_new_tokens {
                     break;
@@ -300,6 +354,8 @@ impl PaddleOcrVl {
             prompt_ms = prompt_elapsed.as_millis(),
             generation_ms = generation_started.elapsed().as_millis(),
             total_ms = started.elapsed().as_millis(),
+            repetition_penalty = options.repetition_penalty,
+            stopped_on_repeat,
             "paddleocr-vl inference timings"
         );
 
@@ -322,14 +378,33 @@ impl PaddleOcrVl {
         task: PaddleOcrVlTask,
         max_new_tokens: usize,
     ) -> Result<Vec<PaddleOcrVlOutput>> {
+        self.inference_images_with_options(
+            images,
+            task,
+            &PaddleOcrVlGenerateOptions {
+                max_new_tokens,
+                ..PaddleOcrVlGenerateOptions::default()
+            },
+        )
+    }
+
+    pub fn inference_images_with_options(
+        &mut self,
+        images: &[DynamicImage],
+        task: PaddleOcrVlTask,
+        options: &PaddleOcrVlGenerateOptions,
+    ) -> Result<Vec<PaddleOcrVlOutput>> {
+        validate_generate_options(options)?;
         let started = Instant::now();
         let mut outputs = Vec::with_capacity(images.len());
         for image in images {
-            outputs.push(self.inference_with_max_new_tokens(image, task, max_new_tokens)?);
+            outputs.push(self.inference_with_options(image, task, options)?);
         }
         tracing::info!(
             images = images.len(),
             total_ms = started.elapsed().as_millis(),
+            max_new_tokens = options.max_new_tokens,
+            repetition_penalty = options.repetition_penalty,
             "paddleocr-vl batch timings"
         );
         Ok(outputs)
@@ -445,6 +520,30 @@ fn model_params(cpu: bool, backend: &LlamaBackend) -> LlamaModelParams {
     }
 }
 
+fn validate_generate_options(options: &PaddleOcrVlGenerateOptions) -> Result<()> {
+    if !options.repetition_penalty.is_finite() || options.repetition_penalty <= 0.0 {
+        bail!("repetition_penalty must be a positive finite number");
+    }
+
+    Ok(())
+}
+
+fn build_sampler(options: &PaddleOcrVlGenerateOptions) -> LlamaSampler {
+    if (options.repetition_penalty - 1.0).abs() < f32::EPSILON {
+        return LlamaSampler::greedy();
+    }
+
+    LlamaSampler::chain_simple([
+        LlamaSampler::penalties(
+            DEFAULT_REPETITION_PENALTY_LAST_N,
+            options.repetition_penalty,
+            0.0,
+            0.0,
+        ),
+        LlamaSampler::greedy(),
+    ])
+}
+
 fn context_params(
     mtmd: &MtmdContext,
     prompt_positions: usize,
@@ -549,10 +648,52 @@ fn token_text(model: &LlamaModel, token: LlamaToken) -> String {
     }
 }
 
+fn repeated_ocr_suffix_start(text: &str) -> Option<usize> {
+    let chars = text
+        .char_indices()
+        .filter(|(_, ch)| !ch.is_whitespace())
+        .collect::<Vec<_>>();
+    let len = chars.len();
+    if len < OCR_REPEAT_MIN_TOTAL_CHARS {
+        return None;
+    }
+
+    let max_unit = OCR_REPEAT_MAX_UNIT_CHARS.min(len / OCR_REPEAT_MIN_REPETITIONS);
+    for unit_len in 1..=max_unit {
+        let unit_start = len - unit_len;
+        let unit = &chars[unit_start..len];
+
+        let mut repetitions = 1usize;
+        while len >= unit_len * (repetitions + 1) {
+            let start = len - unit_len * (repetitions + 1);
+            let end = start + unit_len;
+            if chars[start..end]
+                .iter()
+                .map(|(_, ch)| *ch)
+                .eq(unit.iter().map(|(_, ch)| *ch))
+            {
+                repetitions += 1;
+            } else {
+                break;
+            }
+        }
+
+        let repeated_chars = repetitions * unit_len;
+        if repetitions >= OCR_REPEAT_MIN_REPETITIONS && repeated_chars >= OCR_REPEAT_MIN_TOTAL_CHARS
+        {
+            return Some(chars[len - repeated_chars].0);
+        }
+    }
+
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        DEFAULT_MEDIA_MARKER, PaddleOcrVlTask, build_user_message_content, render_chat_prompt,
+        DEFAULT_MAX_NEW_TOKENS, DEFAULT_MEDIA_MARKER, DEFAULT_REPETITION_PENALTY,
+        PaddleOcrVlGenerateOptions, PaddleOcrVlTask, build_user_message_content,
+        render_chat_prompt, repeated_ocr_suffix_start, validate_generate_options,
     };
 
     #[test]
@@ -600,5 +741,71 @@ mod tests {
             "<|begin_of_sentence|>User: <__media__>Formula Recognition:\nAssistant:\n"
         );
         Ok(())
+    }
+
+    #[test]
+    fn default_generate_options_set_repetition_penalty() -> anyhow::Result<()> {
+        let options = PaddleOcrVlGenerateOptions::default();
+
+        assert_eq!(options.max_new_tokens, DEFAULT_MAX_NEW_TOKENS);
+        assert_eq!(options.repetition_penalty, DEFAULT_REPETITION_PENALTY);
+        validate_generate_options(&options)?;
+        Ok(())
+    }
+
+    #[test]
+    fn generate_options_reject_invalid_repetition_penalty() {
+        let options = PaddleOcrVlGenerateOptions {
+            repetition_penalty: 0.0,
+            ..PaddleOcrVlGenerateOptions::default()
+        };
+
+        let error = validate_generate_options(&options).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("repetition_penalty must be a positive finite number")
+        );
+    }
+
+    #[test]
+    fn repeat_guard_trims_single_glyph_loop() {
+        let text = "\u{25CF}".repeat(12);
+        assert_eq!(repeated_ocr_suffix_start(&text), Some(0));
+    }
+
+    #[test]
+    fn repeat_guard_trims_after_text_prefix() {
+        let text = format!("OCR{}", "\u{25CF}".repeat(12));
+        assert_eq!(repeated_ocr_suffix_start(&text), Some(3));
+    }
+
+    #[test]
+    fn repeat_guard_trims_short_cycle() {
+        assert_eq!(repeated_ocr_suffix_start("-_".repeat(6).as_str()), Some(0));
+    }
+
+    #[test]
+    fn repeat_guard_keeps_short_emphasis_punctuation() {
+        assert_eq!(repeated_ocr_suffix_start("!!!"), None);
+        assert_eq!(repeated_ocr_suffix_start("......"), None);
+    }
+
+    #[test]
+    fn repeat_guard_trims_repeated_text_loop() {
+        assert_eq!(
+            repeated_ocr_suffix_start(
+                "\u{3042}\u{3042}\u{3042}\u{3042}\u{3042}\u{3042}\u{3042}\u{3042}\u{3042}\u{3042}\u{3042}\u{3042}"
+            ),
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn repeat_guard_trims_repeated_word_loop() {
+        assert_eq!(
+            repeated_ocr_suffix_start("test".repeat(4).as_str()),
+            Some(0)
+        );
     }
 }

@@ -1,3 +1,36 @@
+## [0.47.7](https://github.com/mayocream/koharu/compare/0.47.6..0.47.7) - 2026-04-22
+
+### 🐛 Bug Fixes
+
+- Repeat guard for paddleocr-vl - ([103bb2c](https://github.com/mayocream/koharu/commit/103bb2c5252886ef12d97a68b80f2f73e9f8b0bf))
+
+### ⚙️ Miscellaneous Tasks
+
+- Adjust MAX_NEW_TOKENS to 256 - ([4cff3ea](https://github.com/mayocream/koharu/commit/4cff3eaf9d0ed0cdda17529f2acff60a3c7bd178))
+
+
+## [0.47.6](https://github.com/mayocream/koharu/compare/0.47.5..0.47.6) - 2026-04-22
+
+### 🐛 Bug Fixes
+
+- Add repetition_penalty to PaddleOcrVl - ([ae80ce9](https://github.com/mayocream/koharu/commit/ae80ce9aa54197b8095d3d32a964e704d9ef25c3))
+
+### ⚙️ Miscellaneous Tasks
+
+- Make clippy happy - ([c38ac38](https://github.com/mayocream/koharu/commit/c38ac38062bf2b0f0c1257ae11e1eeec9b4c2994))
+
+
+## [0.47.5](https://github.com/mayocream/koharu/compare/0.47.4..0.47.5) - 2026-04-22
+
+### 🐛 Bug Fixes
+
+- Keyring on Linux - ([6ee6aed](https://github.com/mayocream/koharu/commit/6ee6aed139d5a83a4c77b40e500ec13111da7d61))
+
+### ⚙️ Miscellaneous Tasks
+
+- Make clippy happy - ([0472ea9](https://github.com/mayocream/koharu/commit/0472ea9fe8256c6c20653ec9c3e72b9f57fa8ef1))
+
+
 ## [0.47.4](https://github.com/mayocream/koharu/compare/0.47.3..0.47.4) - 2026-04-21
 
 ### 🐛 Bug Fixes
