@@ -396,5 +396,12 @@
     },
     "close": "關閉",
     "retry": "重試"
+  },
+  "engines": {
+    "unload": "卸載引擎",
+    "unloadDetect": "卸載偵測",
+    "unloadOcr": "卸載 OCR",
+    "unloadInpaint": "卸載修復",
+    "unloadAll": "卸載全部"
   }
 }

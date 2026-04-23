@@ -396,5 +396,12 @@
     },
     "close": "Kapat",
     "retry": "Tekrar dene"
+  },
+  "engines": {
+    "unload": "Motorları kaldır",
+    "unloadDetect": "Algılamayı kaldır",
+    "unloadOcr": "OCR'ı kaldır",
+    "unloadInpaint": "Inpaint'i kaldır",
+    "unloadAll": "Tümünü kaldır"
   }
 }

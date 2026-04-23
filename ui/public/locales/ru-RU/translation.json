@@ -396,5 +396,12 @@
     },
     "close": "Закрыть",
     "retry": "Повторить"
+  },
+  "engines": {
+    "unload": "Выгрузить модели",
+    "unloadDetect": "Выгрузить детектор",
+    "unloadOcr": "Выгрузить OCR",
+    "unloadInpaint": "Выгрузить инпейнт",
+    "unloadAll": "Выгрузить всё"
   }
 }

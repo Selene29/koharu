@@ -396,5 +396,12 @@
     },
     "close": "닫기",
     "retry": "다시 시도"
+  },
+  "engines": {
+    "unload": "엔진 언로드",
+    "unloadDetect": "감지 언로드",
+    "unloadOcr": "OCR 언로드",
+    "unloadInpaint": "인페인트 언로드",
+    "unloadAll": "모두 언로드"
   }
 }
