@@ -507,6 +507,7 @@ export const getGetCatalogResponseMock = (
 ): LlmCatalog => ({
   localModels: Array.from({ length: faker.number.int({ min: 1, max: 10 }) }, (_, i) => i + 1).map(
     () => ({
+      downloaded: faker.datatype.boolean(),
       languages: Array.from({ length: faker.number.int({ min: 1, max: 10 }) }, (_, i) => i + 1).map(
         () => faker.string.alpha({ length: { min: 10, max: 20 } }),
       ),
@@ -535,6 +536,7 @@ export const getGetCatalogResponseMock = (
       id: faker.string.alpha({ length: { min: 10, max: 20 } }),
       models: Array.from({ length: faker.number.int({ min: 1, max: 10 }) }, (_, i) => i + 1).map(
         () => ({
+          downloaded: faker.datatype.boolean(),
           languages: Array.from(
             { length: faker.number.int({ min: 1, max: 10 }) },
             (_, i) => i + 1,
