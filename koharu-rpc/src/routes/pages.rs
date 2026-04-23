@@ -12,9 +12,10 @@ use axum::Json;
 use axum::body::Bytes;
 use axum::extract::{Multipart, Path, State};
 use image::GenericImageView;
+use axum::http::StatusCode;
 use koharu_core::{
     BlobRef, ImageData, ImageRole, MaskRole, Node, NodeDataPatch, NodeId, NodeKind, Op, Page,
-    PageId, Scene, Transform,
+    PageId, PagePatch, Scene, Transform,
 };
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -27,6 +28,7 @@ pub fn router() -> OpenApiRouter<AppState> {
     OpenApiRouter::default()
         .routes(routes!(create_pages))
         .routes(routes!(create_pages_from_paths))
+        .routes(routes!(patch_page))
         .routes(routes!(add_image_layer))
         .routes(routes!(put_mask))
 }
@@ -310,6 +312,35 @@ async fn create_pages_from_paths(
     .map_err(ApiError::internal)?;
 
     Ok(Json(CreatePagesResponse { pages: created_ids }))
+}
+
+// ---------------------------------------------------------------------------
+// PATCH /pages/{id}  — update page metadata (e.g. completed flag)
+// ---------------------------------------------------------------------------
+
+#[utoipa::path(
+    patch,
+    path = "/pages/{id}",
+    params(("id" = PageId, Path, description = "Page id")),
+    request_body = PagePatch,
+    responses((status = 204))
+)]
+async fn patch_page(
+    State(app): State<AppState>,
+    Path(page_id): Path<PageId>,
+    Json(patch): Json<PagePatch>,
+) -> ApiResult<StatusCode> {
+    let session = app
+        .current_session()
+        .ok_or_else(|| ApiError::bad_request("no project open"))?;
+    session
+        .apply(Op::UpdatePage {
+            id: page_id,
+            patch,
+            prev: PagePatch::default(),
+        })
+        .map_err(|e| ApiError::bad_request(format!("{e:#}")))?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // ---------------------------------------------------------------------------

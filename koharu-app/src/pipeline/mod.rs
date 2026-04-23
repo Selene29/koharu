@@ -267,6 +267,34 @@ pub async fn run(
                 continue 'pages;
             }
         }
+
+        // Auto-mark the page as completed when all steps succeeded and the
+        // page is either textless (nothing to render) or fully rendered.
+        {
+            let scene_guard = session.scene.read();
+            if let Some(page) = scene_guard.pages.get(page_id) {
+                if !page.completed {
+                    let has_text = page
+                        .nodes
+                        .values()
+                        .any(|n| matches!(n.kind, koharu_core::NodeKind::Text(_)));
+                    let all_done = !has_text
+                        || (Artifact::FinalRender.ready(page)
+                            && Artifact::RenderedSprites.ready(page));
+                    if all_done {
+                        drop(scene_guard);
+                        let _ = session.apply(Op::UpdatePage {
+                            id: *page_id,
+                            patch: koharu_core::PagePatch {
+                                completed: Some(true),
+                                ..Default::default()
+                            },
+                            prev: koharu_core::PagePatch::default(),
+                        });
+                    }
+                }
+            }
+        }
     }
 
     if let Some(sink) = progress.as_ref() {
