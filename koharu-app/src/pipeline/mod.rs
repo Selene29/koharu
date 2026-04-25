@@ -153,6 +153,32 @@ pub async fn run(
     let mut warning_count: usize = 0;
 
     'pages: for (page_index, page_id) in pages.iter().enumerate() {
+        if cancel.load(Ordering::Relaxed) {
+            bail!("cancelled");
+        }
+
+        // Skip pages already marked completed. Without this, textless pages
+        // re-run detectors forever (TextBoxes never becomes "ready" with
+        // zero text nodes, so the per-step skip check below can't help).
+        // Users can untick the green checkmark in the navigator to force
+        // re-processing.
+        {
+            let scene_guard = session.scene.read();
+            let already_completed = scene_guard
+                .pages
+                .get(page_id)
+                .is_some_and(|page| page.completed);
+            if already_completed {
+                tracing::info!(
+                    page = %page_id,
+                    page_index,
+                    "skipped: page already marked completed"
+                );
+                completed += total_steps as u64;
+                continue 'pages;
+            }
+        }
+
         for (seq, &i) in order.iter().enumerate() {
             if cancel.load(Ordering::Relaxed) {
                 bail!("cancelled");
