@@ -406,35 +406,54 @@ async fn export_image_role(
     let format_label_c = format_label.to_string();
     let files = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
         let mut out: Vec<(String, Vec<u8>)> = Vec::new();
-        let mut skipped: usize = 0;
+        let mut fallbacks: usize = 0;
         for (i, id) in page_ids_c.iter().enumerate() {
             let t0 = std::time::Instant::now();
-            match crate::psd_export::png_bytes_for_page(&session_c, *id, role)? {
-                Some(bytes) => {
-                    let size = bytes.len();
-                    out.push((format!("page-{:03}-{id}.png", i + 1), bytes));
-                    log_page_progress(
-                        &bus_c,
-                        &job_id_c,
-                        &format_label_c,
-                        i + 1,
-                        total,
-                        t0.elapsed(),
-                        size,
-                    );
-                }
-                None => {
-                    skipped += 1;
-                }
-            }
+            // Pages without the requested role (e.g. textless cover art that
+            // never produced a Rendered/Inpainted layer) fall back to the
+            // Source image so they still appear in the export — otherwise
+            // they would silently disappear from the user's output folder.
+            let (bytes, used_source) =
+                match crate::psd_export::png_bytes_for_page(&session_c, *id, role)? {
+                    Some(b) => (b, false),
+                    None => match crate::psd_export::png_bytes_for_page(
+                        &session_c,
+                        *id,
+                        ImageRole::Source,
+                    )? {
+                        Some(b) => {
+                            fallbacks += 1;
+                            (b, true)
+                        }
+                        None => {
+                            // No Source either — page genuinely has nothing
+                            // to export. Skip silently.
+                            continue;
+                        }
+                    },
+                };
+            let suffix = if used_source { "-source" } else { "" };
+            let size = bytes.len();
+            out.push((format!("page-{:03}-{id}{suffix}.png", i + 1), bytes));
+            log_page_progress(
+                &bus_c,
+                &job_id_c,
+                &format_label_c,
+                i + 1,
+                total,
+                t0.elapsed(),
+                size,
+            );
         }
-        if skipped > 0 {
+        if fallbacks > 0 {
             emit_export_log(
                 &bus_c,
                 &job_id_c,
                 &format_label_c,
                 JobLogLevel::Warn,
-                format!("{skipped}/{total} page(s) skipped — missing {role:?} layer"),
+                format!(
+                    "{fallbacks}/{total} page(s) used Source fallback (no {role:?} layer)"
+                ),
                 None,
             );
         }
