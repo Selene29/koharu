@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { saveBlob } from '@/lib/io/saveBlob'
 import { useActivityLogStore, type LogEntry } from '@/lib/stores/activityLogStore'
 
 const LEVEL_STYLE: Record<string, string> = {
@@ -32,20 +33,17 @@ function entriesToText(entries: LogEntry[]): string {
     .join('\n')
 }
 
-function downloadLog(entries: LogEntry[]): void {
+async function downloadLog(entries: LogEntry[]): Promise<void> {
   const text = entriesToText(entries)
   // Prefix with UTF-8 BOM so Notepad and other Windows tools recognize the
   // file as UTF-8 instead of guessing Windows-1252 (which mangles em-dashes).
   const blob = new Blob(['﻿', text], { type: 'text/plain;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
   const filename = `koharu-activity-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+  // saveBlob routes to Tauri's native save dialog when running in the
+  // desktop app, and to browser-fs-access (File System Access API + legacy
+  // <a download> fallback) on the web. Plain `<a download>` doesn't work
+  // inside Tauri's webview.
+  await saveBlob(blob, filename)
 }
 
 function EntryRow({ entry }: { entry: LogEntry }) {
@@ -86,7 +84,7 @@ export function ActivityLogPanel() {
             size='icon'
             className='size-5'
             disabled={entries.length === 0}
-            onClick={() => downloadLog(entries)}
+            onClick={() => void downloadLog(entries)}
             title={t('activityLog.export', { defaultValue: 'Export as .txt' })}
           >
             <DownloadIcon className='size-3' />
