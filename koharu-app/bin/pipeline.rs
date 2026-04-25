@@ -258,6 +258,7 @@ async fn run() -> Result<()> {
         cancel,
         Some(progress_sink),
         Some(warning_sink),
+        None,
     )
     .await;
 

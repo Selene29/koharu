@@ -34,7 +34,9 @@ function entriesToText(entries: LogEntry[]): string {
 
 function downloadLog(entries: LogEntry[]): void {
   const text = entriesToText(entries)
-  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+  // Prefix with UTF-8 BOM so Notepad and other Windows tools recognize the
+  // file as UTF-8 instead of guessing Windows-1252 (which mangles em-dashes).
+  const blob = new Blob(['﻿', text], { type: 'text/plain;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const filename = `koharu-activity-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`
   const a = document.createElement('a')

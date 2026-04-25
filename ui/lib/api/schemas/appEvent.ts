@@ -5,6 +5,7 @@
  */
 import type { DownloadProgress } from './downloadProgress'
 import type { JobFinishedEvent } from './jobFinishedEvent'
+import type { JobLogEvent } from './jobLogEvent'
 import type { JobWarningEvent } from './jobWarningEvent'
 import type { LlmTarget } from './llmTarget'
 import type { PipelineProgress } from './pipelineProgress'
@@ -21,6 +22,9 @@ export type AppEvent =
     })
   | (JobWarningEvent & {
       event: 'jobWarning'
+    })
+  | (JobLogEvent & {
+      event: 'jobLog'
     })
   | (JobFinishedEvent & {
       event: 'jobFinished'
