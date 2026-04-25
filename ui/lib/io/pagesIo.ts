@@ -6,6 +6,8 @@ import { openImageFiles, openImageFolder, openKhrFile } from '@/lib/io/openFiles
 import { saveBlob } from '@/lib/io/saveBlob'
 import { exportProject, uploadKhrArchive, uploadPages, uploadPagesByPaths } from '@/lib/io/scene'
 import { queryClient } from '@/lib/queryClient'
+import { useActivityLogStore } from '@/lib/stores/activityLogStore'
+import { useEditorUiStore } from '@/lib/stores/editorUiStore'
 
 /**
  * Platform-neutral image import. `openImageFiles` / `openImageFolder` return
@@ -68,16 +70,43 @@ export async function exportCurrentProjectAs(
   format: 'khr' | 'psd' | 'rendered' | 'inpainted',
   pages?: string[],
 ): Promise<void> {
+  const log = useActivityLogStore.getState()
+  const scope = pages?.length === 1 ? 'current page' : pages ? `${pages.length} pages` : 'all pages'
+  log.push('info', `Export ${format} (${scope}) — requesting from server`)
+
   try {
     const { blob, filename } = await exportProject({ format, pages })
+    log.push(
+      'info',
+      `Export ${format}: server returned ${(blob.size / 1024).toFixed(1)} KB`,
+      `type=${blob.type || 'unknown'}; filename=${filename ?? '(none)'}`,
+    )
+
+    if (blob.size === 0) {
+      const msg = `Export ${format}: server returned empty body`
+      log.push('error', msg)
+      useEditorUiStore.getState().showError(msg)
+      return
+    }
+
     const base = sanitiseBaseName(currentProjectName())
     // Prefer the server's Content-Disposition filename (matches the actual
     // bytes — a raw PNG/PSD for single-file responses, a zip for multi).
     // Fall back to our guess only if the header is missing/unparseable.
     const defaultName = filename ?? `${base}.${exportExtension[format]}`
-    await saveBlob(blob, defaultName)
+
+    log.push('info', `Export ${format}: opening save dialog (${defaultName})`)
+    const saved = await saveBlob(blob, defaultName)
+    if (saved) {
+      log.push('info', `Export ${format}: saved as ${defaultName}`)
+    } else {
+      log.push('info', `Export ${format}: cancelled by user`)
+    }
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
     console.error('Export failed:', err)
+    log.push('error', `Export ${format} failed`, msg)
+    useEditorUiStore.getState().showError(`Export ${format} failed: ${msg}`)
     throw err
   }
 }
