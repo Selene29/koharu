@@ -30,6 +30,10 @@ pub enum AppEvent {
     /// Emitted per failed step so clients can show a non-fatal warning while
     /// the job continues with the next page.
     JobWarning(JobWarningEvent),
+    /// Diagnostic per-step / per-page log line. Less severe than JobWarning;
+    /// includes info-level events like "step skipped (already satisfied)" and
+    /// the per-page auto-completion decision.
+    JobLog(JobLogEvent),
     JobFinished(JobFinishedEvent),
 
     // Runtime library / model downloads.
@@ -148,6 +152,35 @@ pub struct JobWarningEvent {
     /// Engine id (e.g. `"lama-manga"`) of the step that failed.
     pub step_id: String,
     pub message: String,
+}
+
+/// Severity for diagnostic pipeline logs (`JobLogEvent`).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, JsonSchema, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum JobLogLevel {
+    Info,
+    Warn,
+    Error,
+}
+
+/// Diagnostic log line emitted during a pipeline run. Used for per-step and
+/// per-page status messages (skipped, ran, completion-decision) that don't
+/// rise to the level of `JobWarning`.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct JobLogEvent {
+    pub job_id: String,
+    /// 0-based page index this log refers to. `None` for global messages.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_index: Option<usize>,
+    pub total_pages: usize,
+    /// Engine id (e.g. `"paddle-ocr"`) when applicable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub step_id: Option<String>,
+    pub level: JobLogLevel,
+    pub message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
 }
 
 // ---------------------------------------------------------------------------

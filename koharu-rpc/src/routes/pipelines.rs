@@ -10,10 +10,11 @@ use std::sync::atomic::AtomicBool;
 use axum::Json;
 use axum::extract::State;
 use koharu_app::pipeline::{
-    self, PipelineRunOptions, PipelineSpec, ProgressTick, Scope, WarningTick,
+    self, LogTick, PipelineRunOptions, PipelineSpec, ProgressTick, Scope, WarningTick,
 };
 use koharu_core::{
-    AppEvent, JobFinishedEvent, JobStatus, JobSummary, JobWarningEvent, NodeId, PageId,
+    AppEvent, JobFinishedEvent, JobLogEvent, JobStatus, JobSummary, JobWarningEvent, NodeId,
+    PageId,
     PipelineProgress, PipelineStatus, Region,
 };
 use serde::{Deserialize, Serialize};
@@ -140,6 +141,19 @@ async fn start_pipeline(
             message: tick.message,
         }));
     });
+    let log_bus = app.bus.clone();
+    let log_op_id = operation_id.clone();
+    let log_sink: pipeline::LogSink = Arc::new(move |tick: LogTick| {
+        log_bus.publish(AppEvent::JobLog(JobLogEvent {
+            job_id: log_op_id.clone(),
+            page_index: tick.page_index,
+            total_pages: tick.total_pages,
+            step_id: tick.step_id,
+            level: tick.level,
+            message: tick.message,
+            detail: tick.detail,
+        }));
+    });
     tokio::spawn(async move {
         let result = pipeline::run(
             session_c,
@@ -152,6 +166,7 @@ async fn start_pipeline(
             cancel,
             Some(progress_sink),
             Some(warning_sink),
+            Some(log_sink),
         )
         .await;
         let (status, error) = match &result {

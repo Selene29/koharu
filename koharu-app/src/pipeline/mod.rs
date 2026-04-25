@@ -19,7 +19,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::{Result, bail};
-use koharu_core::{Op, PageId, PipelineStep};
+use koharu_core::{JobLogLevel, Op, PageId, PipelineStep};
 use koharu_runtime::RuntimeManager;
 use tracing::Instrument;
 
@@ -31,6 +31,11 @@ pub type ProgressSink = Arc<dyn Fn(ProgressTick) + Send + Sync>;
 /// pipeline skips the rest of that page's steps and moves on to the next
 /// page.
 pub type WarningSink = Arc<dyn Fn(WarningTick) + Send + Sync>;
+
+/// Observer for per-step / per-page diagnostic logs (skip / done /
+/// completion-decision). Distinct from `WarningSink` which is reserved for
+/// step failures the user should notice.
+pub type LogSink = Arc<dyn Fn(LogTick) + Send + Sync>;
 
 #[derive(Debug, Clone)]
 pub struct ProgressTick {
@@ -53,6 +58,18 @@ pub struct WarningTick {
     pub page_index: usize,
     pub total_pages: usize,
     pub message: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct LogTick {
+    pub level: JobLogLevel,
+    /// `None` for global / non-page-bound messages.
+    pub page_index: Option<usize>,
+    pub total_pages: usize,
+    /// Engine id, when the message refers to a specific step.
+    pub step_id: Option<String>,
+    pub message: String,
+    pub detail: Option<String>,
 }
 
 /// Returned by [`run`]. `warning_count == 0` means the run finished cleanly.
@@ -127,6 +144,7 @@ pub async fn run(
     cancel: Arc<AtomicBool>,
     progress: Option<ProgressSink>,
     warnings: Option<WarningSink>,
+    logs: Option<LogSink>,
 ) -> Result<RunOutcome> {
     let infos: Vec<&EngineInfo> = spec
         .steps
@@ -152,6 +170,35 @@ pub async fn run(
     let mut completed: u64 = 0;
     let mut warning_count: usize = 0;
 
+    let emit_log = |level: JobLogLevel,
+                    page_index: Option<usize>,
+                    step_id: Option<&str>,
+                    message: String,
+                    detail: Option<String>| {
+        if let Some(sink) = logs.as_ref() {
+            sink(LogTick {
+                level,
+                page_index,
+                total_pages,
+                step_id: step_id.map(|s| s.to_string()),
+                message,
+                detail,
+            });
+        }
+    };
+
+    emit_log(
+        JobLogLevel::Info,
+        None,
+        None,
+        format!(
+            "Pipeline started: {} page(s), steps: {}",
+            total_pages,
+            spec.steps.join(" → ")
+        ),
+        None,
+    );
+
     'pages: for (page_index, page_id) in pages.iter().enumerate() {
         for (seq, &i) in order.iter().enumerate() {
             if cancel.load(Ordering::Relaxed) {
@@ -176,6 +223,13 @@ pub async fn run(
             if !session.scene.read().pages.contains_key(page_id) {
                 // Skip the remaining steps for a deleted page and credit all
                 // of them against total_units so progress still reaches 100%.
+                emit_log(
+                    JobLogLevel::Warn,
+                    Some(page_index),
+                    Some(info.id),
+                    "skipped: page deleted mid-run".to_string(),
+                    None,
+                );
                 completed += (total_steps - seq) as u64;
                 continue 'pages;
             }
@@ -185,6 +239,19 @@ pub async fn run(
                 let scene_guard = session.scene.read();
                 if let Some(page) = scene_guard.pages.get(page_id) {
                     if info.produces.iter().all(|a| a.ready(page)) {
+                        let produced = info
+                            .produces
+                            .iter()
+                            .map(|a| a.label())
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        emit_log(
+                            JobLogLevel::Info,
+                            Some(page_index),
+                            Some(info.id),
+                            format!("skipped: artifacts already satisfied ({produced})"),
+                            None,
+                        );
                         completed += 1;
                         continue;
                     }
@@ -195,6 +262,13 @@ pub async fn run(
                 Ok(e) => e,
                 Err(err) => {
                     // Engine *load* failure: same recovery as a run failure.
+                    emit_log(
+                        JobLogLevel::Error,
+                        Some(page_index),
+                        Some(info.id),
+                        "engine load failed".to_string(),
+                        Some(format!("{err:#}")),
+                    );
                     report_step_failure(
                         info.id,
                         page_id,
@@ -221,12 +295,20 @@ pub async fn run(
                 llm: &llm,
                 renderer: &renderer,
             };
+            let step_started = std::time::Instant::now();
             let step_result = async { engine.run(ctx).await }
                 .instrument(tracing::info_span!("step", engine = info.id, page = %page_id))
                 .await;
             let ops = match step_result {
                 Ok(ops) => ops,
                 Err(err) => {
+                    emit_log(
+                        JobLogLevel::Error,
+                        Some(page_index),
+                        Some(info.id),
+                        "step failed".to_string(),
+                        Some(format!("{err:#}")),
+                    );
                     report_step_failure(
                         info.id,
                         page_id,
@@ -244,15 +326,31 @@ pub async fn run(
                     continue 'pages;
                 }
             };
+            let step_elapsed = step_started.elapsed();
             completed += 1;
             if ops.is_empty() {
+                emit_log(
+                    JobLogLevel::Info,
+                    Some(page_index),
+                    Some(info.id),
+                    format!("done in {:.2?} (no ops emitted)", step_elapsed),
+                    None,
+                );
                 continue;
             }
+            let op_count = ops.len();
             let batch = Op::Batch {
                 ops,
                 label: format!("{}: page {}", info.id, page_id),
             };
             if let Err(err) = session.apply(batch) {
+                emit_log(
+                    JobLogLevel::Error,
+                    Some(page_index),
+                    Some(info.id),
+                    "scene apply failed".to_string(),
+                    Some(format!("{err:#}")),
+                );
                 report_step_failure(
                     info.id,
                     page_id,
@@ -266,22 +364,35 @@ pub async fn run(
                 );
                 continue 'pages;
             }
+            emit_log(
+                JobLogLevel::Info,
+                Some(page_index),
+                Some(info.id),
+                format!("done in {:.2?} ({} op{})", step_elapsed, op_count, if op_count == 1 { "" } else { "s" }),
+                None,
+            );
         }
 
         // Auto-mark the page as completed when all steps succeeded and the
         // page is either textless (nothing to render) or fully rendered.
+        // Emit a diagnostic log explaining the decision either way.
         {
             let scene_guard = session.scene.read();
             if let Some(page) = scene_guard.pages.get(page_id) {
-                if !page.completed {
+                if page.completed {
+                    emit_log(
+                        JobLogLevel::Info,
+                        Some(page_index),
+                        None,
+                        "page already marked completed".to_string(),
+                        None,
+                    );
+                } else {
                     let has_text = page
                         .nodes
                         .values()
                         .any(|n| matches!(n.kind, koharu_core::NodeKind::Text(_)));
-                    let all_done = !has_text
-                        || (Artifact::FinalRender.ready(page)
-                            && Artifact::RenderedSprites.ready(page));
-                    if all_done {
+                    if !has_text {
                         drop(scene_guard);
                         let _ = session.apply(Op::UpdatePage {
                             id: *page_id,
@@ -291,11 +402,75 @@ pub async fn run(
                             },
                             prev: koharu_core::PagePatch::default(),
                         });
+                        emit_log(
+                            JobLogLevel::Info,
+                            Some(page_index),
+                            None,
+                            "marked completed (no text on page)".to_string(),
+                            None,
+                        );
+                    } else {
+                        let final_ready = Artifact::FinalRender.ready(page);
+                        let sprites_ready = Artifact::RenderedSprites.ready(page);
+                        if final_ready && sprites_ready {
+                            drop(scene_guard);
+                            let _ = session.apply(Op::UpdatePage {
+                                id: *page_id,
+                                patch: koharu_core::PagePatch {
+                                    completed: Some(true),
+                                    ..Default::default()
+                                },
+                                prev: koharu_core::PagePatch::default(),
+                            });
+                            emit_log(
+                                JobLogLevel::Info,
+                                Some(page_index),
+                                None,
+                                "marked completed".to_string(),
+                                None,
+                            );
+                        } else {
+                            // Page has text but isn't fully rendered — list
+                            // exactly which artifacts are missing so the user
+                            // knows what didn't run.
+                            let mut missing = Vec::new();
+                            for a in [
+                                Artifact::TextBoxes,
+                                Artifact::OcrText,
+                                Artifact::FontPredictions,
+                                Artifact::Translations,
+                                Artifact::Inpainted,
+                                Artifact::RenderedSprites,
+                                Artifact::FinalRender,
+                            ] {
+                                if !a.ready(page) {
+                                    missing.push(a.label());
+                                }
+                            }
+                            emit_log(
+                                JobLogLevel::Warn,
+                                Some(page_index),
+                                None,
+                                format!("not marked completed; missing: {}", missing.join(", ")),
+                                None,
+                            );
+                        }
                     }
                 }
             }
         }
     }
+
+    emit_log(
+        JobLogLevel::Info,
+        None,
+        None,
+        format!(
+            "Pipeline finished: {} page(s), {} warning(s)",
+            total_pages, warning_count
+        ),
+        None,
+    );
 
     if let Some(sink) = progress.as_ref() {
         sink(ProgressTick {

@@ -138,7 +138,8 @@ function dispatch(event: AppEvent): void {
     case 'jobStarted':
       useJobsStore.getState().started(event.id, event.kind)
       lastPageByJob.set(event.id, -1)
-      log.push('info', `Pipeline started`)
+      // Don't log here — the backend emits its own `Pipeline started` JobLog
+      // with the page count and step list, which is more informative.
       return
 
     case 'jobProgress':
@@ -152,16 +153,23 @@ function dispatch(event: AppEvent): void {
         if (event.currentPage !== prev) {
           lastPageByJob.set(event.jobId, event.currentPage)
           if (prev >= 0) invalidateScene()
-          const step = event.step ?? 'processing'
-          log.push('info', `Page ${event.currentPage + 1}/${event.totalPages} — ${step}`)
         }
       }
       return
 
     case 'jobWarning':
       useJobsStore.getState().warning(event)
-      log.push('warn', `Step "${event.stepId}" failed on page ${event.pageIndex + 1}`, event.message)
+      log.push('warn', `Page ${event.pageIndex + 1} ${event.stepId} failed`, event.message)
       return
+
+    case 'jobLog': {
+      const tag = event.pageIndex != null ? `Page ${event.pageIndex + 1}/${event.totalPages}` : ''
+      const stepTag = event.stepId ? ` ${event.stepId}` : ''
+      const sep = tag || stepTag ? ' — ' : ''
+      const msg = `${tag}${stepTag}${sep}${event.message}`.trim()
+      log.push(event.level, msg, event.detail ?? undefined)
+      return
+    }
 
     case 'jobFinished': {
       useJobsStore.getState().finished(event.id, event.status, event.error)
@@ -170,9 +178,10 @@ function dispatch(event: AppEvent): void {
       }
       lastPageByJob.delete(event.id)
       invalidateScene()
-      if (event.status === 'completed') {
-        log.push('info', 'Pipeline completed')
-      } else if (event.status === 'completed_with_errors') {
+      // Status-specific summary (terminal states only). The backend's
+      // own "Pipeline finished" JobLog is emitted before this for the
+      // happy path; this catches cancel/fail with the user-visible status.
+      if (event.status === 'completed_with_errors') {
         log.push('warn', 'Pipeline completed with warnings', event.error ?? undefined)
       } else if (event.status === 'cancelled') {
         log.push('info', 'Pipeline cancelled')

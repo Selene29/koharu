@@ -10,7 +10,7 @@ export type LogEntry = {
   detail?: string
 }
 
-const MAX_ENTRIES = 500
+const MAX_ENTRIES = 5000
 
 let nextId = 1
 

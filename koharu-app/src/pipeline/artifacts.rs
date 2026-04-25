@@ -40,6 +40,23 @@ pub enum Artifact {
 }
 
 impl Artifact {
+    /// Stable string label for diagnostics / logs.
+    pub fn label(self) -> &'static str {
+        match self {
+            Artifact::SourceImage => "SourceImage",
+            Artifact::Inpainted => "Inpainted",
+            Artifact::SegmentMask => "SegmentMask",
+            Artifact::BubbleMask => "BubbleMask",
+            Artifact::BrushMask => "BrushMask",
+            Artifact::TextBoxes => "TextBoxes",
+            Artifact::OcrText => "OcrText",
+            Artifact::FontPredictions => "FontPredictions",
+            Artifact::Translations => "Translations",
+            Artifact::RenderedSprites => "RenderedSprites",
+            Artifact::FinalRender => "FinalRender",
+        }
+    }
+
     /// Whether this artifact is satisfied by the given page's current state.
     pub fn ready(self, page: &Page) -> bool {
         match self {
