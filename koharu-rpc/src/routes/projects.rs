@@ -9,15 +9,19 @@
 //! - `DELETE /projects/current` — close current session
 //! - `POST   /projects/current/export` — export current; returns bytes
 
+use std::sync::Arc;
+
 use axum::Json;
 use axum::body::{Body, Bytes};
 use axum::extract::State;
 use axum::http::{HeaderValue, header};
 use axum::response::{IntoResponse, Response};
+use koharu_app::bus::EventBus;
 use koharu_app::projects as project_dirs;
-use koharu_core::{ImageRole, PageId, ProjectSummary};
+use koharu_core::{AppEvent, ImageRole, JobLogEvent, JobLogLevel, PageId, ProjectSummary};
 use serde::{Deserialize, Serialize};
 use utoipa_axum::{router::OpenApiRouter, routes};
+use uuid::Uuid;
 
 use crate::AppState;
 use crate::error::{ApiError, ApiResult};
@@ -215,7 +219,36 @@ async fn export_current_project(
         .current_session()
         .ok_or_else(|| ApiError::bad_request("no project open"))?;
 
+    // Synthetic job id so the export's progress events flow through the
+    // same SSE channel as pipeline jobs and land in the UI's activity log.
+    let job_id = format!("export-{}", Uuid::new_v4());
+    let format_label = match req.format {
+        ExportFormat::Khr => "khr",
+        ExportFormat::Psd => "psd",
+        ExportFormat::Rendered => "rendered",
+        ExportFormat::Inpainted => "inpainted",
+    };
+    let bus = app.bus.clone();
+    emit_export_log(
+        &bus,
+        &job_id,
+        format_label,
+        JobLogLevel::Info,
+        format!("export started: format={format_label}"),
+        None,
+    );
+
+    let started = std::time::Instant::now();
+
     let s_for_compact = session.clone();
+    emit_export_log(
+        &bus,
+        &job_id,
+        format_label,
+        JobLogLevel::Info,
+        "compacting session before export".to_string(),
+        None,
+    );
     tokio::task::spawn_blocking(move || s_for_compact.compact())
         .await
         .map_err(|e| ApiError::internal(anyhow::Error::new(e)))?
@@ -223,8 +256,16 @@ async fn export_current_project(
 
     let project_name = session.scene.read().project.name.clone();
 
-    match req.format {
+    let result = match req.format {
         ExportFormat::Khr => {
+            emit_export_log(
+                &bus,
+                &job_id,
+                format_label,
+                JobLogLevel::Info,
+                "packing project directory into .khr archive".to_string(),
+                None,
+            );
             let src = session.dir.clone();
             let bytes =
                 tokio::task::spawn_blocking(move || koharu_app::archive::export_khr_bytes(&src))
@@ -243,19 +284,48 @@ async fn export_current_project(
             if page_ids.is_empty() {
                 return Err(ApiError::bad_request("no pages in selection"));
             }
+            let total = page_ids.len();
+            emit_export_log(
+                &bus,
+                &job_id,
+                format_label,
+                JobLogLevel::Info,
+                format!("rendering {total} PSD page(s)"),
+                None,
+            );
             let session_c = session.clone();
             let page_ids_c = page_ids.clone();
+            let bus_c = bus.clone();
+            let job_id_c = job_id.clone();
             let files = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
                 let mut out = Vec::with_capacity(page_ids_c.len());
                 for (i, id) in page_ids_c.iter().enumerate() {
+                    let t0 = std::time::Instant::now();
                     let bytes = crate::psd_export::psd_bytes_for_page(&session_c, *id)?;
                     out.push((format!("page-{:03}-{id}.psd", i + 1), bytes));
+                    log_page_progress(
+                        &bus_c,
+                        &job_id_c,
+                        "psd",
+                        i + 1,
+                        total,
+                        t0.elapsed(),
+                        out.last().map(|(_, b)| b.len()).unwrap_or(0),
+                    );
                 }
                 Ok(out)
             })
             .await
             .map_err(|e| ApiError::internal(anyhow::Error::new(e)))?
             .map_err(ApiError::internal)?;
+            emit_export_log(
+                &bus,
+                &job_id,
+                format_label,
+                JobLogLevel::Info,
+                format!("packing {} PSD file(s) into zip", files.len()),
+                None,
+            );
             Ok(files_to_response(files, &project_name, "psd")?)
         }
         ExportFormat::Rendered => {
@@ -264,6 +334,9 @@ async fn export_current_project(
                 req.pages.as_deref(),
                 ImageRole::Rendered,
                 &project_name,
+                &bus,
+                &job_id,
+                format_label,
             )
             .await
         }
@@ -273,30 +346,97 @@ async fn export_current_project(
                 req.pages.as_deref(),
                 ImageRole::Inpainted,
                 &project_name,
+                &bus,
+                &job_id,
+                format_label,
             )
             .await
         }
+    };
+
+    let elapsed = started.elapsed();
+    match &result {
+        Ok(_) => emit_export_log(
+            &bus,
+            &job_id,
+            format_label,
+            JobLogLevel::Info,
+            format!("export complete in {elapsed:.2?}"),
+            None,
+        ),
+        Err(err) => emit_export_log(
+            &bus,
+            &job_id,
+            format_label,
+            JobLogLevel::Error,
+            format!("export failed after {elapsed:.2?}"),
+            Some(format!("{}", err.message)),
+        ),
     }
+    result
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn export_image_role(
     session: &std::sync::Arc<koharu_app::ProjectSession>,
     pages: Option<&[PageId]>,
     role: ImageRole,
     project_name: &str,
+    bus: &Arc<EventBus>,
+    job_id: &str,
+    format_label: &str,
 ) -> ApiResult<Response> {
     let page_ids = resolve_page_ids(session, pages)?;
     if page_ids.is_empty() {
         return Err(ApiError::bad_request("no pages in selection"));
     }
+    let total = page_ids.len();
+    emit_export_log(
+        bus,
+        job_id,
+        format_label,
+        JobLogLevel::Info,
+        format!("rendering {total} {role:?} PNG page(s)"),
+        None,
+    );
     let session_c = session.clone();
     let page_ids_c = page_ids.clone();
+    let bus_c = bus.clone();
+    let job_id_c = job_id.to_string();
+    let format_label_c = format_label.to_string();
     let files = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
         let mut out: Vec<(String, Vec<u8>)> = Vec::new();
+        let mut skipped: usize = 0;
         for (i, id) in page_ids_c.iter().enumerate() {
-            if let Some(bytes) = crate::psd_export::png_bytes_for_page(&session_c, *id, role)? {
-                out.push((format!("page-{:03}-{id}.png", i + 1), bytes));
+            let t0 = std::time::Instant::now();
+            match crate::psd_export::png_bytes_for_page(&session_c, *id, role)? {
+                Some(bytes) => {
+                    let size = bytes.len();
+                    out.push((format!("page-{:03}-{id}.png", i + 1), bytes));
+                    log_page_progress(
+                        &bus_c,
+                        &job_id_c,
+                        &format_label_c,
+                        i + 1,
+                        total,
+                        t0.elapsed(),
+                        size,
+                    );
+                }
+                None => {
+                    skipped += 1;
+                }
             }
+        }
+        if skipped > 0 {
+            emit_export_log(
+                &bus_c,
+                &job_id_c,
+                &format_label_c,
+                JobLogLevel::Warn,
+                format!("{skipped}/{total} page(s) skipped — missing {role:?} layer"),
+                None,
+            );
         }
         Ok(out)
     })
@@ -309,7 +449,68 @@ async fn export_image_role(
             "no pages have the requested layer populated",
         ));
     }
+    emit_export_log(
+        bus,
+        job_id,
+        format_label,
+        JobLogLevel::Info,
+        format!("packing {} PNG file(s) into zip", files.len()),
+        None,
+    );
     files_to_response(files, project_name, role_ext(role))
+}
+
+fn emit_export_log(
+    bus: &Arc<EventBus>,
+    job_id: &str,
+    format_label: &str,
+    level: JobLogLevel,
+    message: String,
+    detail: Option<String>,
+) {
+    bus.publish(AppEvent::JobLog(JobLogEvent {
+        job_id: job_id.to_string(),
+        page_index: None,
+        total_pages: 0,
+        step_id: Some(format_label.to_string()),
+        level,
+        message,
+        detail,
+    }));
+}
+
+/// Throttled per-page progress: logs every page for small exports, every Nth
+/// page for big ones, so the activity log stays informative without becoming
+/// a wall of 200 lines.
+fn log_page_progress(
+    bus: &Arc<EventBus>,
+    job_id: &str,
+    format_label: &str,
+    done: usize,
+    total: usize,
+    elapsed: std::time::Duration,
+    bytes: usize,
+) {
+    let stride = if total <= 20 {
+        1
+    } else if total <= 100 {
+        10
+    } else {
+        25
+    };
+    if done == total || done % stride == 0 {
+        emit_export_log(
+            bus,
+            job_id,
+            format_label,
+            JobLogLevel::Info,
+            format!(
+                "page {done}/{total} ({:.1} KB in {elapsed:.2?})",
+                bytes as f64 / 1024.0
+            ),
+            None,
+        );
+    }
 }
 
 fn resolve_page_ids(
