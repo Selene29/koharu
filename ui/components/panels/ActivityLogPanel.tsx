@@ -1,6 +1,6 @@
 'use client'
 
-import { Trash2Icon } from 'lucide-react'
+import { DownloadIcon, Trash2Icon } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -16,6 +16,34 @@ const LEVEL_STYLE: Record<string, string> = {
 function formatTime(ts: number): string {
   const d = new Date(ts)
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+function formatIsoTime(ts: number): string {
+  return new Date(ts).toISOString()
+}
+
+function entriesToText(entries: LogEntry[]): string {
+  return entries
+    .map((e) => {
+      const level = e.level.toUpperCase().padEnd(5)
+      const detail = e.detail ? ` — ${e.detail}` : ''
+      return `${formatIsoTime(e.timestamp)} ${level} ${e.message}${detail}`
+    })
+    .join('\n')
+}
+
+function downloadLog(entries: LogEntry[]): void {
+  const text = entriesToText(entries)
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const filename = `koharu-activity-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
 function EntryRow({ entry }: { entry: LogEntry }) {
@@ -50,15 +78,27 @@ export function ActivityLogPanel() {
         <span className='text-[10px] font-semibold tracking-wide text-muted-foreground uppercase'>
           {t('activityLog.title', { defaultValue: 'Activity Log' })}
         </span>
-        <Button
-          variant='ghost'
-          size='icon'
-          className='size-5'
-          onClick={clear}
-          title={t('activityLog.clear', { defaultValue: 'Clear' })}
-        >
-          <Trash2Icon className='size-3' />
-        </Button>
+        <div className='flex items-center gap-0.5'>
+          <Button
+            variant='ghost'
+            size='icon'
+            className='size-5'
+            disabled={entries.length === 0}
+            onClick={() => downloadLog(entries)}
+            title={t('activityLog.export', { defaultValue: 'Export as .txt' })}
+          >
+            <DownloadIcon className='size-3' />
+          </Button>
+          <Button
+            variant='ghost'
+            size='icon'
+            className='size-5'
+            onClick={clear}
+            title={t('activityLog.clear', { defaultValue: 'Clear' })}
+          >
+            <Trash2Icon className='size-3' />
+          </Button>
+        </div>
       </div>
       <div className='min-h-0 flex-1 overflow-y-auto font-mono'>
         {entries.length === 0 ? (
