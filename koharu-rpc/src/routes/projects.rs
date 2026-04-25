@@ -10,6 +10,7 @@
 //! - `POST   /projects/current/export` — export current; returns bytes
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use axum::Json;
 use axum::body::{Body, Bytes};
@@ -19,6 +20,7 @@ use axum::response::{IntoResponse, Response};
 use koharu_app::bus::EventBus;
 use koharu_app::projects as project_dirs;
 use koharu_core::{AppEvent, ImageRole, JobLogEvent, JobLogLevel, PageId, ProjectSummary};
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use utoipa_axum::{router::OpenApiRouter, routes};
 use uuid::Uuid;
@@ -298,22 +300,27 @@ async fn export_current_project(
             let bus_c = bus.clone();
             let job_id_c = job_id.clone();
             let files = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
-                let mut out = Vec::with_capacity(page_ids_c.len());
-                for (i, id) in page_ids_c.iter().enumerate() {
-                    let t0 = std::time::Instant::now();
-                    let bytes = crate::psd_export::psd_bytes_for_page(&session_c, *id)?;
-                    out.push((format!("page-{:03}-{id}.psd", i + 1), bytes));
-                    log_page_progress(
-                        &bus_c,
-                        &job_id_c,
-                        "psd",
-                        i + 1,
-                        total,
-                        t0.elapsed(),
-                        out.last().map(|(_, b)| b.len()).unwrap_or(0),
-                    );
-                }
-                Ok(out)
+                let done = AtomicUsize::new(0);
+                page_ids_c
+                    .par_iter()
+                    .enumerate()
+                    .map(|(i, id)| -> anyhow::Result<(String, Vec<u8>)> {
+                        let t0 = std::time::Instant::now();
+                        let bytes = crate::psd_export::psd_bytes_for_page(&session_c, *id)?;
+                        let size = bytes.len();
+                        let n = done.fetch_add(1, Ordering::Relaxed) + 1;
+                        log_page_progress(
+                            &bus_c,
+                            &job_id_c,
+                            "psd",
+                            n,
+                            total,
+                            t0.elapsed(),
+                            size,
+                        );
+                        Ok((format!("page-{:03}-{id}.psd", i + 1), bytes))
+                    })
+                    .collect::<anyhow::Result<Vec<_>>>()
             })
             .await
             .map_err(|e| ApiError::internal(anyhow::Error::new(e)))?
@@ -405,46 +412,49 @@ async fn export_image_role(
     let job_id_c = job_id.to_string();
     let format_label_c = format_label.to_string();
     let files = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
-        let mut out: Vec<(String, Vec<u8>)> = Vec::new();
-        let mut fallbacks: usize = 0;
-        for (i, id) in page_ids_c.iter().enumerate() {
-            let t0 = std::time::Instant::now();
-            // Pages without the requested role (e.g. textless cover art that
-            // never produced a Rendered/Inpainted layer) fall back to the
-            // Source image so they still appear in the export — otherwise
-            // they would silently disappear from the user's output folder.
-            let (bytes, used_source) =
-                match crate::psd_export::png_bytes_for_page(&session_c, *id, role)? {
-                    Some(b) => (b, false),
-                    None => match crate::psd_export::png_bytes_for_page(
-                        &session_c,
-                        *id,
-                        ImageRole::Source,
-                    )? {
-                        Some(b) => {
-                            fallbacks += 1;
-                            (b, true)
-                        }
-                        None => {
-                            // No Source either — page genuinely has nothing
-                            // to export. Skip silently.
-                            continue;
-                        }
-                    },
-                };
-            let suffix = if used_source { "-source" } else { "" };
-            let size = bytes.len();
-            out.push((format!("page-{:03}-{id}{suffix}.png", i + 1), bytes));
-            log_page_progress(
-                &bus_c,
-                &job_id_c,
-                &format_label_c,
-                i + 1,
-                total,
-                t0.elapsed(),
-                size,
-            );
-        }
+        let fallbacks = AtomicUsize::new(0);
+        let done = AtomicUsize::new(0);
+        // Pages are independent: PNG-encoding them in parallel scales close
+        // to linearly with cores. Source-fallback semantics from the
+        // single-threaded version are preserved.
+        let results: Vec<Option<(String, Vec<u8>)>> = page_ids_c
+            .par_iter()
+            .enumerate()
+            .map(|(i, id)| -> anyhow::Result<Option<(String, Vec<u8>)>> {
+                let t0 = std::time::Instant::now();
+                let (bytes, used_source) =
+                    match crate::psd_export::png_bytes_for_page(&session_c, *id, role)? {
+                        Some(b) => (b, false),
+                        None => match crate::psd_export::png_bytes_for_page(
+                            &session_c,
+                            *id,
+                            ImageRole::Source,
+                        )? {
+                            Some(b) => {
+                                fallbacks.fetch_add(1, Ordering::Relaxed);
+                                (b, true)
+                            }
+                            None => return Ok(None),
+                        },
+                    };
+                let suffix = if used_source { "-source" } else { "" };
+                let size = bytes.len();
+                let entry = (format!("page-{:03}-{id}{suffix}.png", i + 1), bytes);
+                let n = done.fetch_add(1, Ordering::Relaxed) + 1;
+                log_page_progress(
+                    &bus_c,
+                    &job_id_c,
+                    &format_label_c,
+                    n,
+                    total,
+                    t0.elapsed(),
+                    size,
+                );
+                Ok(Some(entry))
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        let out: Vec<(String, Vec<u8>)> = results.into_iter().flatten().collect();
+        let fallbacks = fallbacks.load(Ordering::Relaxed);
         if fallbacks > 0 {
             emit_export_log(
                 &bus_c,
