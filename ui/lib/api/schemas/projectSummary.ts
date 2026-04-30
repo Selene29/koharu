@@ -7,15 +7,15 @@
 export interface ProjectSummary {
   /** Stable identifier — the `.khrproj` directory basename (without the
   extension). Clients address projects by this. */
-  id: string
-  name: string
+  id: string;
+  name: string;
   /** Absolute filesystem path. Informational; clients never need to pass
   it back in — they use `id`. */
-  path: string
+  path: string;
   /**
      * Last modification time of the project directory on disk (ms since
   UNIX epoch). Used for "recent projects" ordering.
      * @minimum 0
      */
-  updatedAtMs?: number
+  updatedAtMs?: number;
 }

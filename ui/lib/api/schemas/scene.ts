@@ -3,11 +3,11 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { ProjectMeta } from './projectMeta'
-import type { ScenePages } from './scenePages'
+import type { ProjectMeta } from './projectMeta';
+import type { ScenePages } from './scenePages';
 
 export interface Scene {
   /** Pages in insertion order; `IndexMap` ordering *is* the page order. */
-  pages: ScenePages
-  project: ProjectMeta
+  pages: ScenePages;
+  project: ProjectMeta;
 }

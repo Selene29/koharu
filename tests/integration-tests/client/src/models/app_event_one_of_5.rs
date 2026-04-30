@@ -13,22 +13,34 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AppEventOneOf5 {
-    #[serde(rename = "error", skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
+    #[serde(rename = "downloaded")]
+    pub downloaded: i64,
+    #[serde(rename = "filename")]
+    pub filename: String,
     #[serde(rename = "id")]
     pub id: String,
     #[serde(rename = "status")]
-    pub status: models::JobStatus,
+    pub status: Box<models::DownloadStatus>,
+    #[serde(rename = "total", skip_serializing_if = "Option::is_none")]
+    pub total: Option<i64>,
     #[serde(rename = "event")]
     pub event: Event,
 }
 
 impl AppEventOneOf5 {
-    pub fn new(id: String, status: models::JobStatus, event: Event) -> AppEventOneOf5 {
+    pub fn new(
+        downloaded: i64,
+        filename: String,
+        id: String,
+        status: models::DownloadStatus,
+        event: Event,
+    ) -> AppEventOneOf5 {
         AppEventOneOf5 {
-            error: None,
+            downloaded,
+            filename,
             id,
-            status,
+            status: Box::new(status),
+            total: None,
             event,
         }
     }
@@ -36,12 +48,12 @@ impl AppEventOneOf5 {
 ///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Event {
-    #[serde(rename = "jobFinished")]
-    JobFinished,
+    #[serde(rename = "downloadProgress")]
+    DownloadProgress,
 }
 
 impl Default for Event {
     fn default() -> Event {
-        Self::JobFinished
+        Self::DownloadProgress
     }
 }

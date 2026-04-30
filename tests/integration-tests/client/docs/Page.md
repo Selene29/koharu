@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**completed** | Option<**bool**> | Whether this page is considered fully processed / ready for export. Auto-set by the pipeline when a page finishes all steps (or has no text to process). Can also be toggled manually by the user. | [optional]
 **height** | **u32** |  | 
 **id** | **uuid::Uuid** |  | 
 **name** | **String** |  | 

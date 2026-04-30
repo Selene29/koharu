@@ -3,11 +3,11 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { ProjectStyle } from './projectStyle'
+import type { ProjectStyle } from './projectStyle';
 
 export interface ProjectMeta {
-  createdAt: string
-  name: string
-  style?: ProjectStyle
-  updatedAt: string
+  createdAt: string;
+  name: string;
+  style?: ProjectStyle;
+  updatedAt: string;
 }

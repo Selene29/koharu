@@ -4,7 +4,8 @@
  * OpenAPI spec version: 0.0.1
  */
 
-export type PipelineStep = (typeof PipelineStep)[keyof typeof PipelineStep]
+export type PipelineStep = typeof PipelineStep[keyof typeof PipelineStep];
+
 
 export const PipelineStep = {
   detect: 'detect',
@@ -12,4 +13,4 @@ export const PipelineStep = {
   inpaint: 'inpaint',
   llmGenerate: 'llmGenerate',
   render: 'render',
-} as const
+} as const;

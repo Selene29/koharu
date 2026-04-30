@@ -114,6 +114,7 @@ async fn update_page_then_undo_round_trips() -> anyhow::Result<()> {
     let op = Op::UpdatePage {
         id: page_id,
         patch: PagePatch {
+            completed: None,
             name: Some("renamed".into()),
             width: None,
             height: None,

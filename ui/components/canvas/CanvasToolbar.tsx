@@ -42,10 +42,10 @@ import {
   getGetCurrentLlmQueryKey,
   putCurrentLlm,
   startPipeline,
-  unloadEngine,
   useGetCatalog,
   useGetCurrentLlm,
 } from '@/lib/api/default/default'
+import { unloadEngine } from '@/lib/api/system/system'
 import type { LlmCatalog, LlmCatalogModel, LlmProviderCatalog, LlmTarget } from '@/lib/api/schemas'
 import { useEditorUiStore } from '@/lib/stores/editorUiStore'
 import { useJobsStore } from '@/lib/stores/jobsStore'
@@ -318,7 +318,7 @@ function LlmStatusPopover() {
     if (!target || target.kind !== 'local') return
     setDeletingModel(true)
     try {
-      await deleteLocalLlmModel(target.modelId)
+      await deleteLocalLlmModel({ modelId: target.modelId })
       await invalidateLlmQueries()
       setDeleteDialogOpen(false)
       setDeleteCandidate(null)
@@ -538,7 +538,7 @@ function EngineUnloadPopover() {
   const handleUnload = async (engine: string) => {
     setBusy(engine)
     try {
-      await unloadEngine(engine)
+      await unloadEngine({ engine })
     } catch (e) {
       useEditorUiStore.getState().showError(String(e))
     } finally {

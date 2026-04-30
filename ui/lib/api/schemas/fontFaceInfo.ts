@@ -3,13 +3,13 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { FontSource } from './fontSource'
+import type { FontSource } from './fontSource';
 
 export interface FontFaceInfo {
-  cached: boolean
+  cached: boolean;
   /** @nullable */
-  category?: string | null
-  familyName: string
-  postScriptName: string
-  source: FontSource
+  category?: string | null;
+  familyName: string;
+  postScriptName: string;
+  source: FontSource;
 }

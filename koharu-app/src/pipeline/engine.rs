@@ -88,7 +88,15 @@ pub struct EngineInfo {
     pub name: &'static str,
     pub needs: &'static [Artifact],
     pub produces: &'static [Artifact],
+    pub resource: EngineResource,
     pub load: EngineLoadFn,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EngineResource {
+    Model,
+    Llm,
+    Render,
 }
 
 inventory::collect!(EngineInfo);
@@ -99,12 +107,14 @@ inventory::collect!(EngineInfo);
 
 pub struct Registry {
     engines: RwLock<HashMap<&'static str, Arc<dyn Engine>>>,
+    load_locks: RwLock<HashMap<&'static str, Arc<tokio::sync::Mutex<()>>>>,
 }
 
 impl Default for Registry {
     fn default() -> Self {
         Self {
             engines: RwLock::new(HashMap::new()),
+            load_locks: RwLock::new(HashMap::new()),
         }
     }
 }
@@ -121,10 +131,25 @@ impl Registry {
         runtime: &RuntimeManager,
         cpu: bool,
     ) -> Result<Arc<dyn Engine>> {
-        if let Some(engine) = self.engines.read().get(id).cloned() {
+        let info = Self::find(id)?;
+        if let Some(engine) = self.engines.read().get(info.id).cloned() {
             return Ok(engine);
         }
-        let info = Self::find(id)?;
+        let load_lock = {
+            if let Some(lock) = self.load_locks.read().get(info.id).cloned() {
+                lock
+            } else {
+                let mut locks = self.load_locks.write();
+                locks
+                    .entry(info.id)
+                    .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
+                    .clone()
+            }
+        };
+        let _guard = load_lock.lock().await;
+        if let Some(engine) = self.engines.read().get(info.id).cloned() {
+            return Ok(engine);
+        }
         let loaded = async { (info.load)(runtime, cpu).await }
             .instrument(tracing::info_span!("engine_load", engine = id))
             .await?;
@@ -203,4 +228,70 @@ pub fn build_order(infos: &[&EngineInfo]) -> Result<Vec<usize>> {
     let order = toposort(&g, None)
         .map_err(|c| anyhow::anyhow!("cycle at '{}'", infos[g[c.node_id()]].id))?;
     Ok(order.into_iter().map(|n| g[n]).collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use anyhow::Result;
+    use async_trait::async_trait;
+    use koharu_core::Op;
+    use koharu_runtime::{ComputePolicy, RuntimeManager};
+
+    use super::*;
+
+    static TEST_LOAD_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+    struct TestEngine;
+
+    #[async_trait]
+    impl Engine for TestEngine {
+        async fn run(&self, _ctx: EngineCtx<'_>) -> Result<Vec<Op>> {
+            Ok(Vec::new())
+        }
+    }
+
+    inventory::submit! {
+        EngineInfo {
+            id: "test-load-lock-engine",
+            name: "Test Load Lock Engine",
+            needs: &[],
+            produces: &[Artifact::TextBoxes],
+            resource: EngineResource::Model,
+            load: |_runtime, _cpu| Box::pin(async move {
+                TEST_LOAD_COUNT.fetch_add(1, Ordering::SeqCst);
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                Ok(Box::new(TestEngine) as Box<dyn Engine>)
+            }),
+        }
+    }
+
+    #[tokio::test]
+    async fn registry_loads_cold_engine_once_under_concurrency() -> Result<()> {
+        TEST_LOAD_COUNT.store(0, Ordering::SeqCst);
+        let temp = tempfile::tempdir()?;
+        let runtime = RuntimeManager::new(temp.path(), ComputePolicy::CpuOnly)?;
+        let registry = Arc::new(Registry::new());
+
+        let mut tasks = tokio::task::JoinSet::new();
+        for _ in 0..8 {
+            let registry = registry.clone();
+            let runtime = runtime.clone();
+            tasks.spawn(async move {
+                registry
+                    .get("test-load-lock-engine", &runtime, true)
+                    .await
+                    .map(|_| ())
+            });
+        }
+
+        while let Some(result) = tasks.join_next().await {
+            result??;
+        }
+
+        assert_eq!(TEST_LOAD_COUNT.load(Ordering::SeqCst), 1);
+        Ok(())
+    }
 }

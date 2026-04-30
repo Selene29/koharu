@@ -3,9 +3,9 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { Page } from './page'
+import type { Page } from './page';
 
 /**
  * Pages in insertion order; `IndexMap` ordering *is* the page order.
  */
-export type ScenePages = { [key: string]: Page }
+export type ScenePages = {[key: string]: Page};

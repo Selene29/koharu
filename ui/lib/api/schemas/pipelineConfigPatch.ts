@@ -3,22 +3,24 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
+import type { PipelineParallelismConfigPatch } from './pipelineParallelismConfigPatch';
 
 export interface PipelineConfigPatch {
   /** @nullable */
-  bubbleSegmenter?: string | null
+  bubbleSegmenter?: string | null;
   /** @nullable */
-  detector?: string | null
+  detector?: string | null;
   /** @nullable */
-  fontDetector?: string | null
+  fontDetector?: string | null;
   /** @nullable */
-  inpainter?: string | null
+  inpainter?: string | null;
   /** @nullable */
-  ocr?: string | null
+  ocr?: string | null;
+  parallelism?: null | PipelineParallelismConfigPatch;
   /** @nullable */
-  renderer?: string | null
+  renderer?: string | null;
   /** @nullable */
-  segmenter?: string | null
+  segmenter?: string | null;
   /** @nullable */
-  translator?: string | null
+  translator?: string | null;
 }

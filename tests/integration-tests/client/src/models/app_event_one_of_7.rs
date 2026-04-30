@@ -13,41 +13,29 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AppEventOneOf7 {
-    /// Stable identifier — the `.khrproj` directory basename (without the extension). Clients address projects by this.
-    #[serde(rename = "id")]
-    pub id: String,
-    #[serde(rename = "name")]
-    pub name: String,
-    /// Absolute filesystem path. Informational; clients never need to pass it back in — they use `id`.
-    #[serde(rename = "path")]
-    pub path: String,
-    /// Last modification time of the project directory on disk (ms since UNIX epoch). Used for \"recent projects\" ordering.
-    #[serde(rename = "updatedAtMs", skip_serializing_if = "Option::is_none")]
-    pub updated_at_ms: Option<i64>,
     #[serde(rename = "event")]
     pub event: Event,
+    #[serde(rename = "target")]
+    pub target: Box<models::LlmTarget>,
 }
 
 impl AppEventOneOf7 {
-    pub fn new(id: String, name: String, path: String, event: Event) -> AppEventOneOf7 {
+    pub fn new(event: Event, target: models::LlmTarget) -> AppEventOneOf7 {
         AppEventOneOf7 {
-            id,
-            name,
-            path,
-            updated_at_ms: None,
             event,
+            target: Box::new(target),
         }
     }
 }
 ///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Event {
-    #[serde(rename = "projectOpened")]
-    ProjectOpened,
+    #[serde(rename = "llmLoaded")]
+    LlmLoaded,
 }
 
 impl Default for Event {
     fn default() -> Event {
-        Self::ProjectOpened
+        Self::LlmLoaded
     }
 }

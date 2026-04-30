@@ -115,6 +115,16 @@ function appConfigToPatch(cfg: AppConfig): ConfigPatch {
       translator: cfg.pipeline.translator,
       inpainter: cfg.pipeline.inpainter,
       renderer: cfg.pipeline.renderer,
+      parallelism: cfg.pipeline.parallelism
+        ? {
+            maxPagesInFlight: cfg.pipeline.parallelism.max_pages_in_flight,
+            maxActiveSteps: cfg.pipeline.parallelism.max_active_steps,
+            maxModelSteps: cfg.pipeline.parallelism.max_model_steps,
+            maxLlmSteps: cfg.pipeline.parallelism.max_llm_steps,
+            maxRenderSteps: cfg.pipeline.parallelism.max_render_steps,
+            maxSameEngineSteps: cfg.pipeline.parallelism.max_same_engine_steps,
+          }
+        : undefined,
     }
   }
   if (cfg.providers) {
@@ -154,6 +164,14 @@ type SettingsDialogProps = {
 const DEFAULT_HTTP_CONNECT_TIMEOUT = 20
 const DEFAULT_HTTP_READ_TIMEOUT = 300
 const DEFAULT_HTTP_MAX_RETRIES = 3
+const DEFAULT_PIPELINE_PARALLELISM = {
+  max_pages_in_flight: 2,
+  max_active_steps: 2,
+  max_model_steps: 1,
+  max_llm_steps: 1,
+  max_render_steps: 1,
+  max_same_engine_steps: 1,
+}
 
 export function SettingsDialog({
   open,
@@ -504,6 +522,21 @@ function EnginesPane({
   onChange: (pipeline: import('@/lib/api/schemas').PipelineConfig) => void
 }) {
   const { t } = useTranslation()
+  const parallelism = pipeline.parallelism ?? DEFAULT_PIPELINE_PARALLELISM
+  const updateParallelism = (
+    key: keyof typeof DEFAULT_PIPELINE_PARALLELISM,
+    rawValue: string,
+  ) => {
+    const parsed = Number.parseInt(rawValue, 10)
+    const value = Number.isFinite(parsed) ? Math.min(32, Math.max(1, parsed)) : 1
+    onChange({
+      ...pipeline,
+      parallelism: {
+        ...parallelism,
+        [key]: value,
+      },
+    })
+  }
 
   const sections = [
     {
@@ -567,6 +600,74 @@ function EnginesPane({
           </Select>
         </div>
       ))}
+
+      <div className='space-y-3 pt-2'>
+        <div>
+          <h3 className='text-sm font-semibold text-foreground'>
+            {t('settings.pipelineParallelism')}
+          </h3>
+          <p className='mt-0.5 text-xs leading-relaxed text-muted-foreground'>
+            {t('settings.pipelineParallelismDescription')}
+          </p>
+        </div>
+        <div className='grid gap-3 md:grid-cols-2'>
+          <ParallelismInput
+            label={t('settings.maxPagesInFlight')}
+            value={parallelism.max_pages_in_flight}
+            onChange={(value) => updateParallelism('max_pages_in_flight', value)}
+          />
+          <ParallelismInput
+            label={t('settings.maxActiveSteps')}
+            value={parallelism.max_active_steps}
+            onChange={(value) => updateParallelism('max_active_steps', value)}
+          />
+          <ParallelismInput
+            label={t('settings.maxModelSteps')}
+            value={parallelism.max_model_steps}
+            onChange={(value) => updateParallelism('max_model_steps', value)}
+          />
+          <ParallelismInput
+            label={t('settings.maxLlmSteps')}
+            value={parallelism.max_llm_steps}
+            onChange={(value) => updateParallelism('max_llm_steps', value)}
+          />
+          <ParallelismInput
+            label={t('settings.maxRenderSteps')}
+            value={parallelism.max_render_steps}
+            onChange={(value) => updateParallelism('max_render_steps', value)}
+          />
+          <ParallelismInput
+            label={t('settings.maxSameEngineSteps')}
+            value={parallelism.max_same_engine_steps}
+            onChange={(value) => updateParallelism('max_same_engine_steps', value)}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ParallelismInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: number | undefined
+  onChange: (value: string) => void
+}) {
+  return (
+    <div className='space-y-1.5'>
+      <Label className='text-xs'>{label}</Label>
+      <Input
+        type='number'
+        min='1'
+        max='32'
+        step='1'
+        inputMode='numeric'
+        value={String(value ?? 1)}
+        onChange={(event) => onChange(event.target.value)}
+      />
     </div>
   )
 }

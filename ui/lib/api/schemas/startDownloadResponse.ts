@@ -7,5 +7,5 @@
 export interface StartDownloadResponse {
   /** Operation id. Reusing the package id keeps ids meaningful for clients
   watching progress events. */
-  operationId: string
+  operationId: string;
 }

@@ -14,17 +14,21 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProjectMeta {
     #[serde(rename = "createdAt")]
-    pub created_at: String,
+    pub created_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(rename = "name")]
     pub name: String,
     #[serde(rename = "style", skip_serializing_if = "Option::is_none")]
     pub style: Option<Box<models::ProjectStyle>>,
     #[serde(rename = "updatedAt")]
-    pub updated_at: String,
+    pub updated_at: chrono::DateTime<chrono::FixedOffset>,
 }
 
 impl ProjectMeta {
-    pub fn new(created_at: String, name: String, updated_at: String) -> ProjectMeta {
+    pub fn new(
+        created_at: chrono::DateTime<chrono::FixedOffset>,
+        name: String,
+        updated_at: chrono::DateTime<chrono::FixedOffset>,
+    ) -> ProjectMeta {
         ProjectMeta {
             created_at,
             name,

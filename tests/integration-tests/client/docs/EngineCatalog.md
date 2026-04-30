@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**bubble_segmenters** | [**Vec<models::EngineCatalogEntry>**](EngineCatalogEntry.md) |  | 
 **detectors** | [**Vec<models::EngineCatalogEntry>**](EngineCatalogEntry.md) |  | 
 **font_detectors** | [**Vec<models::EngineCatalogEntry>**](EngineCatalogEntry.md) |  | 
 **inpainters** | [**Vec<models::EngineCatalogEntry>**](EngineCatalogEntry.md) |  | 

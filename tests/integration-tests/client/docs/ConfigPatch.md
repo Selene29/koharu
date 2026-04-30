@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**data** | Option<[**models::DataConfigPatch**](DataConfigPatch.md)> |  | [optional]
 **http** | Option<[**models::HttpConfigPatch**](HttpConfigPatch.md)> |  | [optional]
 **pipeline** | Option<[**models::PipelineConfigPatch**](PipelineConfigPatch.md)> |  | [optional]
 **providers** | Option<[**Vec<models::ProviderPatch>**](ProviderPatch.md)> | If present, replaces the entire list. Api_key values of `\"[REDACTED]\"` are interpreted as \"leave the existing secret alone\". | [optional]

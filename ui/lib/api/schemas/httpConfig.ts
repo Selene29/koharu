@@ -6,9 +6,9 @@
 
 export interface HttpConfig {
   /** @minimum 0 */
-  connect_timeout?: number
+  connect_timeout?: number;
   /** @minimum 0 */
-  max_retries?: number
+  max_retries?: number;
   /** @minimum 0 */
-  read_timeout?: number
+  read_timeout?: number;
 }

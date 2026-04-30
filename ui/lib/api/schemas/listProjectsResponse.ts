@@ -3,8 +3,8 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { ProjectSummary } from './projectSummary'
+import type { ProjectSummary } from './projectSummary';
 
 export interface ListProjectsResponse {
-  projects: ProjectSummary[]
+  projects: ProjectSummary[];
 }

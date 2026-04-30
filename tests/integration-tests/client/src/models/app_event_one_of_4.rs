@@ -13,46 +13,22 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AppEventOneOf4 {
-    #[serde(rename = "currentPage")]
-    pub current_page: i32,
-    #[serde(rename = "currentStepIndex")]
-    pub current_step_index: i32,
-    #[serde(rename = "jobId")]
-    pub job_id: String,
-    #[serde(rename = "overallPercent")]
-    pub overall_percent: i32,
+    #[serde(rename = "error", skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(rename = "id")]
+    pub id: String,
     #[serde(rename = "status")]
-    pub status: Box<models::PipelineStatus>,
-    #[serde(rename = "step", skip_serializing_if = "Option::is_none")]
-    pub step: Option<models::PipelineStep>,
-    #[serde(rename = "totalPages")]
-    pub total_pages: i32,
-    #[serde(rename = "totalSteps")]
-    pub total_steps: i32,
+    pub status: models::JobStatus,
     #[serde(rename = "event")]
     pub event: Event,
 }
 
 impl AppEventOneOf4 {
-    pub fn new(
-        current_page: i32,
-        current_step_index: i32,
-        job_id: String,
-        overall_percent: i32,
-        status: models::PipelineStatus,
-        total_pages: i32,
-        total_steps: i32,
-        event: Event,
-    ) -> AppEventOneOf4 {
+    pub fn new(id: String, status: models::JobStatus, event: Event) -> AppEventOneOf4 {
         AppEventOneOf4 {
-            current_page,
-            current_step_index,
-            job_id,
-            overall_percent,
-            status: Box::new(status),
-            step: None,
-            total_pages,
-            total_steps,
+            error: None,
+            id,
+            status,
             event,
         }
     }
@@ -60,12 +36,12 @@ impl AppEventOneOf4 {
 ///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Event {
-    #[serde(rename = "jobProgress")]
-    JobProgress,
+    #[serde(rename = "jobFinished")]
+    JobFinished,
 }
 
 impl Default for Event {
     fn default() -> Event {
-        Self::JobProgress
+        Self::JobFinished
     }
 }

@@ -10,8 +10,8 @@ export interface ProviderConfig {
   Serializes as `"[REDACTED]"` in API responses.
      * @nullable
      */
-  api_key?: string | null
+  api_key?: string | null;
   /** @nullable */
-  base_url?: string | null
-  id: string
+  base_url?: string | null;
+  id: string;
 }

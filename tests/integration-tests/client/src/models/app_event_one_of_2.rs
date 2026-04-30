@@ -11,34 +11,54 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
+/// AppEventOneOf2 : A single step on one page failed but the pipeline kept running. Emitted per failed step so clients can show a non-fatal warning while the job continues with the next page.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AppEventOneOf2 {
-    #[serde(rename = "epoch")]
-    pub epoch: u64,
+    #[serde(rename = "jobId")]
+    pub job_id: String,
+    #[serde(rename = "message")]
+    pub message: String,
+    /// 0-based page index where the failure happened.
+    #[serde(rename = "pageIndex")]
+    pub page_index: u32,
+    /// Engine id (e.g. `\"lama-manga\"`) of the step that failed.
+    #[serde(rename = "stepId")]
+    pub step_id: String,
+    #[serde(rename = "totalPages")]
+    pub total_pages: u32,
     #[serde(rename = "event")]
     pub event: Event,
-    #[serde(rename = "op")]
-    pub op: Box<models::Op>,
 }
 
 impl AppEventOneOf2 {
-    pub fn new(epoch: u64, event: Event, op: models::Op) -> AppEventOneOf2 {
+    /// A single step on one page failed but the pipeline kept running. Emitted per failed step so clients can show a non-fatal warning while the job continues with the next page.
+    pub fn new(
+        job_id: String,
+        message: String,
+        page_index: u32,
+        step_id: String,
+        total_pages: u32,
+        event: Event,
+    ) -> AppEventOneOf2 {
         AppEventOneOf2 {
-            epoch,
+            job_id,
+            message,
+            page_index,
+            step_id,
+            total_pages,
             event,
-            op: Box::new(op),
         }
     }
 }
 ///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Event {
-    #[serde(rename = "opRedone")]
-    OpRedone,
+    #[serde(rename = "jobWarning")]
+    JobWarning,
 }
 
 impl Default for Event {
     fn default() -> Event {
-        Self::OpRedone
+        Self::JobWarning
     }
 }

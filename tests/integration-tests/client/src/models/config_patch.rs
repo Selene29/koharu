@@ -15,6 +15,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ConfigPatch {
     #[serde(
+        rename = "data",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub data: Option<Option<Box<models::DataConfigPatch>>>,
+    #[serde(
         rename = "http",
         default,
         with = "::serde_with::rust::double_option",
@@ -42,6 +49,7 @@ impl ConfigPatch {
     /// Sparse patch for `koharu_app::AppConfig`. Missing fields mean \"leave as-is\". The `providers` field, if present, replaces the whole provider list — we do not merge by id because ordering is meaningful.
     pub fn new() -> ConfigPatch {
         ConfigPatch {
+            data: None,
             http: None,
             pipeline: None,
             providers: None,

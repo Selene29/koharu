@@ -14,6 +14,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PipelineConfigPatch {
     #[serde(
+        rename = "bubbleSegmenter",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub bubble_segmenter: Option<Option<String>>,
+    #[serde(
         rename = "detector",
         default,
         with = "::serde_with::rust::double_option",
@@ -42,6 +49,13 @@ pub struct PipelineConfigPatch {
     )]
     pub ocr: Option<Option<String>>,
     #[serde(
+        rename = "parallelism",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub parallelism: Option<Option<Box<models::PipelineParallelismConfigPatch>>>,
+    #[serde(
         rename = "renderer",
         default,
         with = "::serde_with::rust::double_option",
@@ -67,10 +81,12 @@ pub struct PipelineConfigPatch {
 impl PipelineConfigPatch {
     pub fn new() -> PipelineConfigPatch {
         PipelineConfigPatch {
+            bubble_segmenter: None,
             detector: None,
             font_detector: None,
             inpainter: None,
             ocr: None,
+            parallelism: None,
             renderer: None,
             segmenter: None,
             translator: None,

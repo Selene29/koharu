@@ -13,47 +13,29 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AppEventOneOf6 {
-    #[serde(rename = "downloaded")]
-    pub downloaded: i64,
-    #[serde(rename = "filename")]
-    pub filename: String,
-    #[serde(rename = "id")]
-    pub id: String,
-    #[serde(rename = "status")]
-    pub status: Box<models::DownloadStatus>,
-    #[serde(rename = "total", skip_serializing_if = "Option::is_none")]
-    pub total: Option<i64>,
     #[serde(rename = "event")]
     pub event: Event,
+    #[serde(rename = "target")]
+    pub target: Box<models::LlmTarget>,
 }
 
 impl AppEventOneOf6 {
-    pub fn new(
-        downloaded: i64,
-        filename: String,
-        id: String,
-        status: models::DownloadStatus,
-        event: Event,
-    ) -> AppEventOneOf6 {
+    pub fn new(event: Event, target: models::LlmTarget) -> AppEventOneOf6 {
         AppEventOneOf6 {
-            downloaded,
-            filename,
-            id,
-            status: Box::new(status),
-            total: None,
             event,
+            target: Box::new(target),
         }
     }
 }
 ///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Event {
-    #[serde(rename = "downloadProgress")]
-    DownloadProgress,
+    #[serde(rename = "llmLoading")]
+    LlmLoading,
 }
 
 impl Default for Event {
     fn default() -> Event {
-        Self::DownloadProgress
+        Self::LlmLoading
     }
 }

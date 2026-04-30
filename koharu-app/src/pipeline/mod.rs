@@ -11,16 +11,19 @@ mod engines;
 
 pub use artifacts::Artifact;
 pub use engine::{
-    BoxFuture, Engine, EngineCtx, EngineInfo, EngineLoadFn, PipelineRunOptions, Registry,
-    build_order,
+    BoxFuture, Engine, EngineCtx, EngineInfo, EngineLoadFn, EngineResource, PipelineRunOptions,
+    Registry, build_order,
 };
 
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 use anyhow::{Result, bail};
 use koharu_core::{JobLogLevel, Op, PageId, PipelineStep};
 use koharu_runtime::RuntimeManager;
+use tokio::task::JoinSet;
 use tracing::Instrument;
 
 /// Observer for pipeline progress. `step_id` is the engine id of the step
@@ -98,6 +101,7 @@ fn step_for(info: &EngineInfo) -> Option<PipelineStep> {
     })
 }
 
+use crate::config::PipelineParallelismConfig;
 use crate::llm;
 use crate::renderer;
 use crate::session::ProjectSession;
@@ -111,12 +115,184 @@ pub struct PipelineSpec {
     pub scope: Scope,
     pub steps: Vec<String>,
     pub options: PipelineRunOptions,
+    pub parallelism: PipelineParallelismConfig,
 }
 
 #[derive(Debug, Clone)]
 pub enum Scope {
     WholeProject,
     Pages(Vec<PageId>),
+}
+
+#[derive(Debug, Clone)]
+struct PageState {
+    page_id: PageId,
+    page_index: usize,
+    next_step: usize,
+    active: bool,
+    running: bool,
+    done: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ActiveLimits {
+    max_pages_in_flight: usize,
+    max_active_steps: usize,
+    max_model_steps: usize,
+    max_llm_steps: usize,
+    max_render_steps: usize,
+    max_same_engine_steps: usize,
+}
+
+impl ActiveLimits {
+    fn from_config(config: &PipelineParallelismConfig) -> Self {
+        Self {
+            max_pages_in_flight: config.max_pages_in_flight.max(1),
+            max_active_steps: config.max_active_steps.max(1),
+            max_model_steps: config.max_model_steps.max(1),
+            max_llm_steps: config.max_llm_steps.max(1),
+            max_render_steps: config.max_render_steps.max(1),
+            max_same_engine_steps: config.max_same_engine_steps.max(1),
+        }
+    }
+}
+
+#[derive(Default)]
+struct RunningCounts {
+    active_steps: usize,
+    model_steps: usize,
+    llm_steps: usize,
+    render_steps: usize,
+    engines: HashMap<&'static str, usize>,
+}
+
+impl RunningCounts {
+    fn can_start(&self, info: &EngineInfo, limits: &ActiveLimits) -> bool {
+        if self.active_steps >= limits.max_active_steps {
+            return false;
+        }
+        if self.engine_count(info.id) >= limits.max_same_engine_steps {
+            return false;
+        }
+        match info.resource {
+            EngineResource::Model => self.model_steps < limits.max_model_steps,
+            EngineResource::Llm => self.llm_steps < limits.max_llm_steps,
+            EngineResource::Render => self.render_steps < limits.max_render_steps,
+        }
+    }
+
+    fn started(&mut self, info: &EngineInfo) {
+        self.active_steps += 1;
+        *self.engines.entry(info.id).or_insert(0) += 1;
+        match info.resource {
+            EngineResource::Model => self.model_steps += 1,
+            EngineResource::Llm => self.llm_steps += 1,
+            EngineResource::Render => self.render_steps += 1,
+        }
+    }
+
+    fn finished(&mut self, info: &EngineInfo) {
+        self.active_steps = self.active_steps.saturating_sub(1);
+        if let Some(count) = self.engines.get_mut(info.id) {
+            *count = count.saturating_sub(1);
+            if *count == 0 {
+                self.engines.remove(info.id);
+            }
+        }
+        match info.resource {
+            EngineResource::Model => self.model_steps = self.model_steps.saturating_sub(1),
+            EngineResource::Llm => self.llm_steps = self.llm_steps.saturating_sub(1),
+            EngineResource::Render => self.render_steps = self.render_steps.saturating_sub(1),
+        }
+    }
+
+    fn engine_count(&self, engine_id: &str) -> usize {
+        self.engines.get(engine_id).copied().unwrap_or(0)
+    }
+}
+
+struct StepTask {
+    page_slot: usize,
+    page_id: PageId,
+    page_index: usize,
+    step_index: usize,
+    engine_id: &'static str,
+    session: Arc<ProjectSession>,
+    registry: Arc<Registry>,
+    runtime: Arc<RuntimeManager>,
+    cpu: bool,
+    llm: Arc<llm::Model>,
+    renderer: Arc<renderer::Renderer>,
+    options: PipelineRunOptions,
+    cancel: Arc<AtomicBool>,
+}
+
+struct StepTaskResult {
+    page_slot: usize,
+    page_id: PageId,
+    page_index: usize,
+    step_index: usize,
+    engine_id: &'static str,
+    outcome: StepTaskOutcome,
+}
+
+enum StepTaskOutcome {
+    LoadFailed(anyhow::Error),
+    RunFailed {
+        err: anyhow::Error,
+        elapsed: Duration,
+    },
+    Success {
+        ops: Vec<Op>,
+        elapsed: Duration,
+    },
+}
+
+impl StepTask {
+    async fn run(self) -> StepTaskResult {
+        let outcome = match self
+            .registry
+            .get(self.engine_id, &self.runtime, self.cpu)
+            .await
+        {
+            Ok(engine) => {
+                let scene_snap = self.session.scene_snapshot();
+                let ctx = EngineCtx {
+                    scene: &scene_snap,
+                    page: self.page_id,
+                    blobs: &self.session.blobs,
+                    runtime: &self.runtime,
+                    cancel: &self.cancel,
+                    options: &self.options,
+                    llm: &self.llm,
+                    renderer: &self.renderer,
+                };
+                let started = Instant::now();
+                let result = async { engine.run(ctx).await }
+                    .instrument(tracing::info_span!(
+                        "step",
+                        engine = self.engine_id,
+                        page = %self.page_id
+                    ))
+                    .await;
+                let elapsed = started.elapsed();
+                match result {
+                    Ok(ops) => StepTaskOutcome::Success { ops, elapsed },
+                    Err(err) => StepTaskOutcome::RunFailed { err, elapsed },
+                }
+            }
+            Err(err) => StepTaskOutcome::LoadFailed(err),
+        };
+
+        StepTaskResult {
+            page_slot: self.page_slot,
+            page_id: self.page_id,
+            page_index: self.page_index,
+            step_index: self.step_index,
+            engine_id: self.engine_id,
+            outcome,
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -169,6 +345,7 @@ pub async fn run(
     let total_units = (total_pages * total_steps) as u64;
     let mut completed: u64 = 0;
     let mut warning_count: usize = 0;
+    let limits = ActiveLimits::from_config(&spec.parallelism);
 
     let emit_log = |level: JobLogLevel,
                     page_index: Option<usize>,
@@ -192,79 +369,123 @@ pub async fn run(
         None,
         None,
         format!(
-            "Pipeline started: {} page(s), steps: {}",
+            "Pipeline started: {} page(s), steps: {}, parallelism: pages={}, active={}, model={}, llm={}, render={}, same-engine={}",
             total_pages,
-            spec.steps.join(" → ")
+            spec.steps.join(" -> "),
+            limits.max_pages_in_flight,
+            limits.max_active_steps,
+            limits.max_model_steps,
+            limits.max_llm_steps,
+            limits.max_render_steps,
+            limits.max_same_engine_steps,
         ),
         None,
     );
 
-    'pages: for (page_index, page_id) in pages.iter().enumerate() {
-        if cancel.load(Ordering::Relaxed) {
-            bail!("cancelled");
+    let mut page_states = pages
+        .iter()
+        .enumerate()
+        .map(|(page_index, page_id)| PageState {
+            page_id: *page_id,
+            page_index,
+            next_step: 0,
+            active: false,
+            running: false,
+            done: false,
+        })
+        .collect::<Vec<_>>();
+    let mut pending_pages = (0..page_states.len()).collect::<VecDeque<_>>();
+    let mut ready_pages = VecDeque::new();
+    let mut running = RunningCounts::default();
+    let mut tasks = JoinSet::new();
+    let mut active_pages = 0usize;
+
+    loop {
+        while active_pages < limits.max_pages_in_flight {
+            if !activate_next_page(
+                &mut pending_pages,
+                &mut ready_pages,
+                &mut page_states,
+                &session,
+                total_steps,
+                &mut completed,
+                &mut active_pages,
+                &emit_log,
+            ) {
+                break;
+            }
         }
 
-        // Skip pages already marked completed. Without this, textless pages
-        // re-run detectors forever (TextBoxes never becomes "ready" with
-        // zero text nodes, so the per-step skip check below can't help).
-        // Users can untick the green checkmark in the navigator to force
-        // re-processing.
-        {
-            let scene_guard = session.scene.read();
-            if let Some(page) = scene_guard.pages.get(page_id) {
-                if page.completed {
+        if active_pages == 0 && tasks.is_empty() && pending_pages.is_empty() {
+            break;
+        }
+
+        let mut made_progress = false;
+        if !cancel.load(Ordering::Relaxed) {
+            let ready_count = ready_pages.len();
+            for _ in 0..ready_count {
+                let Some(page_slot) = ready_pages.pop_front() else {
+                    break;
+                };
+                if page_states[page_slot].done || page_states[page_slot].running {
+                    continue;
+                }
+                if page_states[page_slot].next_step >= order.len() {
+                    mark_page_completed_if_ready(
+                        &session,
+                        page_states[page_slot].page_id,
+                        page_states[page_slot].page_index,
+                        total_pages,
+                        &emit_log,
+                    );
+                    page_states[page_slot].done = true;
+                    page_states[page_slot].active = false;
+                    active_pages = active_pages.saturating_sub(1);
+                    made_progress = true;
+                    continue;
+                }
+
+                let seq = page_states[page_slot].next_step;
+                let info = infos[order[seq]];
+                if let Some(sink) = progress.as_ref() {
+                    let percent = ((completed * 100) / total_units).min(100) as u8;
+                    sink(ProgressTick {
+                        step: step_for(info),
+                        step_id: info.id.to_string(),
+                        step_index: seq,
+                        total_steps,
+                        page_index: page_states[page_slot].page_index,
+                        total_pages,
+                        overall_percent: percent,
+                    });
+                }
+
+                if !session
+                    .scene
+                    .read()
+                    .pages
+                    .contains_key(&page_states[page_slot].page_id)
+                {
                     emit_log(
-                        JobLogLevel::Info,
-                        Some(page_index),
-                        None,
-                        "skipped: page already marked completed".to_string(),
+                        JobLogLevel::Warn,
+                        Some(page_states[page_slot].page_index),
+                        Some(info.id),
+                        "skipped: page deleted mid-run".to_string(),
                         None,
                     );
-                    completed += total_steps as u64;
-                    continue 'pages;
+                    completed += (total_steps - seq) as u64;
+                    page_states[page_slot].done = true;
+                    page_states[page_slot].active = false;
+                    active_pages = active_pages.saturating_sub(1);
+                    made_progress = true;
+                    continue;
                 }
-            }
-        }
 
-        for (seq, &i) in order.iter().enumerate() {
-            if cancel.load(Ordering::Relaxed) {
-                bail!("cancelled");
-            }
-            let info = infos[i];
-
-            if let Some(sink) = progress.as_ref() {
-                let percent = ((completed * 100) / total_units).min(100) as u8;
-                sink(ProgressTick {
-                    step: step_for(info),
-                    step_id: info.id.to_string(),
-                    step_index: seq,
-                    total_steps,
-                    page_index,
-                    total_pages,
-                    overall_percent: percent,
-                });
-            }
-
-            // The page must still exist (user may have deleted it mid-run).
-            if !session.scene.read().pages.contains_key(page_id) {
-                // Skip the remaining steps for a deleted page and credit all
-                // of them against total_units so progress still reaches 100%.
-                emit_log(
-                    JobLogLevel::Warn,
-                    Some(page_index),
-                    Some(info.id),
-                    "skipped: page deleted mid-run".to_string(),
-                    None,
-                );
-                completed += (total_steps - seq) as u64;
-                continue 'pages;
-            }
-
-            // Skip this step if its produced artifacts are already satisfied.
-            {
-                let scene_guard = session.scene.read();
-                if let Some(page) = scene_guard.pages.get(page_id) {
-                    if info.produces.iter().all(|a| a.ready(page)) {
+                {
+                    let scene_guard = session.scene.read();
+                    if let Some(page) = scene_guard.pages.get(&page_states[page_slot].page_id)
+                        && info.produces.iter().all(|a| a.ready(page))
+                    {
                         let produced = info
                             .produces
                             .iter()
@@ -273,218 +494,179 @@ pub async fn run(
                             .join(", ");
                         emit_log(
                             JobLogLevel::Info,
-                            Some(page_index),
+                            Some(page_states[page_slot].page_index),
                             Some(info.id),
                             format!("skipped: artifacts already satisfied ({produced})"),
                             None,
                         );
                         completed += 1;
+                        page_states[page_slot].next_step += 1;
+                        ready_pages.push_back(page_slot);
+                        made_progress = true;
                         continue;
                     }
                 }
-            }
 
-            let engine = match registry.get(info.id, &runtime, cpu).await {
-                Ok(e) => e,
-                Err(err) => {
-                    // Engine *load* failure: same recovery as a run failure.
+                if !running.can_start(info, &limits) {
+                    ready_pages.push_back(page_slot);
+                    continue;
+                }
+
+                running.started(info);
+                page_states[page_slot].running = true;
+                tasks.spawn(
+                    StepTask {
+                        page_slot,
+                        page_id: page_states[page_slot].page_id,
+                        page_index: page_states[page_slot].page_index,
+                        step_index: seq,
+                        engine_id: info.id,
+                        session: session.clone(),
+                        registry: registry.clone(),
+                        runtime: runtime.clone(),
+                        cpu,
+                        llm: llm.clone(),
+                        renderer: renderer.clone(),
+                        options: spec.options.clone(),
+                        cancel: cancel.clone(),
+                    }
+                    .run(),
+                );
+                made_progress = true;
+            }
+        }
+
+        if made_progress {
+            continue;
+        }
+
+        if let Some(joined) = tasks.join_next().await {
+            let result =
+                joined.map_err(|err| anyhow::anyhow!("pipeline step task failed: {err}"))?;
+            let info = Registry::find(result.engine_id)?;
+            running.finished(info);
+            page_states[result.page_slot].running = false;
+
+            match result.outcome {
+                StepTaskOutcome::LoadFailed(err) => {
                     emit_log(
                         JobLogLevel::Error,
-                        Some(page_index),
-                        Some(info.id),
+                        Some(result.page_index),
+                        Some(result.engine_id),
                         "engine load failed".to_string(),
                         Some(format!("{err:#}")),
                     );
                     report_step_failure(
-                        info.id,
-                        page_id,
-                        seq,
-                        page_index,
+                        result.engine_id,
+                        &result.page_id,
+                        result.step_index,
+                        result.page_index,
                         total_pages,
                         total_steps,
                         &err,
                         &mut warning_count,
                         warnings.as_ref(),
                     );
-                    completed += (total_steps - seq) as u64;
-                    continue 'pages;
+                    completed += (total_steps - result.step_index) as u64;
+                    page_states[result.page_slot].done = true;
+                    page_states[result.page_slot].active = false;
+                    active_pages = active_pages.saturating_sub(1);
                 }
-            };
-            let scene_snap = session.scene_snapshot();
-            let ctx = EngineCtx {
-                scene: &scene_snap,
-                page: *page_id,
-                blobs: &session.blobs,
-                runtime: &runtime,
-                cancel: &cancel,
-                options: &spec.options,
-                llm: &llm,
-                renderer: &renderer,
-            };
-            let step_started = std::time::Instant::now();
-            let step_result = async { engine.run(ctx).await }
-                .instrument(tracing::info_span!("step", engine = info.id, page = %page_id))
-                .await;
-            let ops = match step_result {
-                Ok(ops) => ops,
-                Err(err) => {
+                StepTaskOutcome::RunFailed { err, elapsed } => {
                     emit_log(
                         JobLogLevel::Error,
-                        Some(page_index),
-                        Some(info.id),
+                        Some(result.page_index),
+                        Some(result.engine_id),
                         "step failed".to_string(),
-                        Some(format!("{err:#}")),
+                        Some(format!("{err:#}; elapsed {elapsed:.2?}")),
                     );
                     report_step_failure(
-                        info.id,
-                        page_id,
-                        seq,
-                        page_index,
+                        result.engine_id,
+                        &result.page_id,
+                        result.step_index,
+                        result.page_index,
                         total_pages,
                         total_steps,
                         &err,
                         &mut warning_count,
                         warnings.as_ref(),
                     );
-                    // Subsequent steps on this page almost always consume the
-                    // failed step's artifact; skip the rest and move on.
-                    completed += (total_steps - seq) as u64;
-                    continue 'pages;
+                    completed += (total_steps - result.step_index) as u64;
+                    page_states[result.page_slot].done = true;
+                    page_states[result.page_slot].active = false;
+                    active_pages = active_pages.saturating_sub(1);
                 }
-            };
-            let step_elapsed = step_started.elapsed();
-            completed += 1;
-            if ops.is_empty() {
-                emit_log(
-                    JobLogLevel::Info,
-                    Some(page_index),
-                    Some(info.id),
-                    format!("done in {:.2?} (no ops emitted)", step_elapsed),
-                    None,
-                );
-                continue;
-            }
-            let op_count = ops.len();
-            let batch = Op::Batch {
-                ops,
-                label: format!("{}: page {}", info.id, page_id),
-            };
-            if let Err(err) = session.apply(batch) {
-                emit_log(
-                    JobLogLevel::Error,
-                    Some(page_index),
-                    Some(info.id),
-                    "scene apply failed".to_string(),
-                    Some(format!("{err:#}")),
-                );
-                report_step_failure(
-                    info.id,
-                    page_id,
-                    seq,
-                    page_index,
-                    total_pages,
-                    total_steps,
-                    &err,
-                    &mut warning_count,
-                    warnings.as_ref(),
-                );
-                continue 'pages;
-            }
-            emit_log(
-                JobLogLevel::Info,
-                Some(page_index),
-                Some(info.id),
-                format!("done in {:.2?} ({} op{})", step_elapsed, op_count, if op_count == 1 { "" } else { "s" }),
-                None,
-            );
-        }
-
-        // Auto-mark the page as completed when all steps succeeded and the
-        // page is either textless (nothing to render) or fully rendered.
-        // Emit a diagnostic log explaining the decision either way.
-        {
-            let scene_guard = session.scene.read();
-            if let Some(page) = scene_guard.pages.get(page_id) {
-                if page.completed {
-                    emit_log(
-                        JobLogLevel::Info,
-                        Some(page_index),
-                        None,
-                        "page already marked completed".to_string(),
-                        None,
-                    );
-                } else {
-                    let has_text = page
-                        .nodes
-                        .values()
-                        .any(|n| matches!(n.kind, koharu_core::NodeKind::Text(_)));
-                    if !has_text {
-                        drop(scene_guard);
-                        let _ = session.apply(Op::UpdatePage {
-                            id: *page_id,
-                            patch: koharu_core::PagePatch {
-                                completed: Some(true),
-                                ..Default::default()
-                            },
-                            prev: koharu_core::PagePatch::default(),
-                        });
+                StepTaskOutcome::Success { ops, elapsed } => {
+                    completed += 1;
+                    if ops.is_empty() {
                         emit_log(
                             JobLogLevel::Info,
-                            Some(page_index),
-                            None,
-                            "marked completed (no text on page)".to_string(),
+                            Some(result.page_index),
+                            Some(result.engine_id),
+                            format!("done in {:.2?} (no ops emitted)", elapsed),
                             None,
                         );
+                        page_states[result.page_slot].next_step += 1;
+                        ready_pages.push_back(result.page_slot);
                     } else {
-                        let final_ready = Artifact::FinalRender.ready(page);
-                        let sprites_ready = Artifact::RenderedSprites.ready(page);
-                        if final_ready && sprites_ready {
-                            drop(scene_guard);
-                            let _ = session.apply(Op::UpdatePage {
-                                id: *page_id,
-                                patch: koharu_core::PagePatch {
-                                    completed: Some(true),
-                                    ..Default::default()
-                                },
-                                prev: koharu_core::PagePatch::default(),
-                            });
+                        let op_count = ops.len();
+                        let batch = Op::Batch {
+                            ops,
+                            label: format!("{}: page {}", result.engine_id, result.page_id),
+                        };
+                        if let Err(err) = session.apply(batch) {
+                            emit_log(
+                                JobLogLevel::Error,
+                                Some(result.page_index),
+                                Some(result.engine_id),
+                                "scene apply failed".to_string(),
+                                Some(format!("{err:#}")),
+                            );
+                            report_step_failure(
+                                result.engine_id,
+                                &result.page_id,
+                                result.step_index,
+                                result.page_index,
+                                total_pages,
+                                total_steps,
+                                &err,
+                                &mut warning_count,
+                                warnings.as_ref(),
+                            );
+                            completed += (total_steps - result.step_index - 1) as u64;
+                            page_states[result.page_slot].done = true;
+                            page_states[result.page_slot].active = false;
+                            active_pages = active_pages.saturating_sub(1);
+                        } else {
                             emit_log(
                                 JobLogLevel::Info,
-                                Some(page_index),
-                                None,
-                                "marked completed".to_string(),
-                                None,
-                            );
-                        } else {
-                            // Page has text but isn't fully rendered — list
-                            // exactly which artifacts are missing so the user
-                            // knows what didn't run.
-                            let mut missing = Vec::new();
-                            for a in [
-                                Artifact::TextBoxes,
-                                Artifact::OcrText,
-                                Artifact::FontPredictions,
-                                Artifact::Translations,
-                                Artifact::Inpainted,
-                                Artifact::RenderedSprites,
-                                Artifact::FinalRender,
-                            ] {
-                                if !a.ready(page) {
-                                    missing.push(a.label());
-                                }
-                            }
-                            emit_log(
-                                JobLogLevel::Warn,
-                                Some(page_index),
-                                None,
-                                format!("not marked completed; missing: {}", missing.join(", ")),
+                                Some(result.page_index),
+                                Some(result.engine_id),
+                                format!(
+                                    "done in {:.2?} ({} op{})",
+                                    elapsed,
+                                    op_count,
+                                    if op_count == 1 { "" } else { "s" }
+                                ),
                                 None,
                             );
+                            page_states[result.page_slot].next_step += 1;
+                            ready_pages.push_back(result.page_slot);
                         }
                     }
                 }
             }
+            continue;
         }
+
+        if cancel.load(Ordering::Relaxed) {
+            bail!("cancelled");
+        }
+        break;
+    }
+
+    if cancel.load(Ordering::Relaxed) {
+        bail!("cancelled");
     }
 
     emit_log(
@@ -510,6 +692,141 @@ pub async fn run(
         });
     }
     Ok(RunOutcome { warning_count })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn activate_next_page(
+    pending_pages: &mut VecDeque<usize>,
+    ready_pages: &mut VecDeque<usize>,
+    page_states: &mut [PageState],
+    session: &ProjectSession,
+    total_steps: usize,
+    completed: &mut u64,
+    active_pages: &mut usize,
+    emit_log: &impl Fn(JobLogLevel, Option<usize>, Option<&str>, String, Option<String>),
+) -> bool {
+    let Some(page_slot) = pending_pages.pop_front() else {
+        return false;
+    };
+    page_states[page_slot].active = true;
+
+    {
+        let scene_guard = session.scene.read();
+        if let Some(page) = scene_guard.pages.get(&page_states[page_slot].page_id)
+            && page.completed
+        {
+            emit_log(
+                JobLogLevel::Info,
+                Some(page_states[page_slot].page_index),
+                None,
+                "skipped: page already marked completed".to_string(),
+                None,
+            );
+            *completed += total_steps as u64;
+            page_states[page_slot].done = true;
+            page_states[page_slot].active = false;
+            return true;
+        }
+    }
+
+    *active_pages += 1;
+    ready_pages.push_back(page_slot);
+    true
+}
+
+fn mark_page_completed_if_ready(
+    session: &ProjectSession,
+    page_id: PageId,
+    page_index: usize,
+    total_pages: usize,
+    emit_log: &impl Fn(JobLogLevel, Option<usize>, Option<&str>, String, Option<String>),
+) {
+    let scene_guard = session.scene.read();
+    if let Some(page) = scene_guard.pages.get(&page_id) {
+        if page.completed {
+            emit_log(
+                JobLogLevel::Info,
+                Some(page_index),
+                None,
+                "page already marked completed".to_string(),
+                None,
+            );
+        } else {
+            let has_text = page
+                .nodes
+                .values()
+                .any(|n| matches!(n.kind, koharu_core::NodeKind::Text(_)));
+            if !has_text {
+                drop(scene_guard);
+                let _ = session.apply(Op::UpdatePage {
+                    id: page_id,
+                    patch: koharu_core::PagePatch {
+                        completed: Some(true),
+                        ..Default::default()
+                    },
+                    prev: koharu_core::PagePatch::default(),
+                });
+                emit_log(
+                    JobLogLevel::Info,
+                    Some(page_index),
+                    None,
+                    "marked completed (no text on page)".to_string(),
+                    None,
+                );
+            } else {
+                let final_ready = Artifact::FinalRender.ready(page);
+                let sprites_ready = Artifact::RenderedSprites.ready(page);
+                if final_ready && sprites_ready {
+                    drop(scene_guard);
+                    let _ = session.apply(Op::UpdatePage {
+                        id: page_id,
+                        patch: koharu_core::PagePatch {
+                            completed: Some(true),
+                            ..Default::default()
+                        },
+                        prev: koharu_core::PagePatch::default(),
+                    });
+                    emit_log(
+                        JobLogLevel::Info,
+                        Some(page_index),
+                        None,
+                        "marked completed".to_string(),
+                        None,
+                    );
+                } else {
+                    let mut missing = Vec::new();
+                    for a in [
+                        Artifact::TextBoxes,
+                        Artifact::OcrText,
+                        Artifact::FontPredictions,
+                        Artifact::Translations,
+                        Artifact::Inpainted,
+                        Artifact::RenderedSprites,
+                        Artifact::FinalRender,
+                    ] {
+                        if !a.ready(page) {
+                            missing.push(a.label());
+                        }
+                    }
+                    emit_log(
+                        JobLogLevel::Warn,
+                        Some(page_index),
+                        None,
+                        format!("not marked completed; missing: {}", missing.join(", ")),
+                        None,
+                    );
+                }
+            }
+        }
+    } else {
+        emit_log(
+            JobLogLevel::Warn,
+            Some(page_index),
+            None,
+            "not marked completed; page deleted mid-run".to_string(),
+            Some(format!("total pages: {total_pages}")),
+        );
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -604,5 +921,47 @@ mod tests {
                 && engine.name == "Anime Text YOLO (N)"
                 && engine.produces.iter().map(String::as_str).eq(["TextBoxes"])
         }));
+    }
+
+    static MODEL_INFO: EngineInfo = EngineInfo {
+        id: "test-model-limit",
+        name: "Test Model Limit",
+        needs: &[],
+        produces: &[Artifact::TextBoxes],
+        resource: EngineResource::Model,
+        load: |_runtime, _cpu| Box::pin(async { unreachable!("metadata-only test") }),
+    };
+
+    static LLM_INFO: EngineInfo = EngineInfo {
+        id: "test-llm-limit",
+        name: "Test LLM Limit",
+        needs: &[Artifact::OcrText],
+        produces: &[Artifact::Translations],
+        resource: EngineResource::Llm,
+        load: |_runtime, _cpu| Box::pin(async { unreachable!("metadata-only test") }),
+    };
+
+    #[test]
+    fn running_counts_enforce_resource_and_same_engine_limits() {
+        let limits = ActiveLimits::from_config(&PipelineParallelismConfig {
+            max_pages_in_flight: 2,
+            max_active_steps: 2,
+            max_model_steps: 1,
+            max_llm_steps: 1,
+            max_render_steps: 1,
+            max_same_engine_steps: 1,
+        });
+        let mut running = RunningCounts::default();
+
+        assert!(running.can_start(&MODEL_INFO, &limits));
+        running.started(&MODEL_INFO);
+
+        assert!(!running.can_start(&MODEL_INFO, &limits));
+        assert!(running.can_start(&LLM_INFO, &limits));
+        running.started(&LLM_INFO);
+        assert!(!running.can_start(&LLM_INFO, &limits));
+
+        running.finished(&MODEL_INFO);
+        assert!(running.can_start(&MODEL_INFO, &limits));
     }
 }

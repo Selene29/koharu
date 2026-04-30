@@ -3,17 +3,14 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { ImageDataPatch } from './imageDataPatch'
-import type { MaskDataPatch } from './maskDataPatch'
-import type { TextDataPatch } from './textDataPatch'
+import type { ImageDataPatch } from './imageDataPatch';
+import type { MaskDataPatch } from './maskDataPatch';
+import type { TextDataPatch } from './textDataPatch';
 
-export type NodeDataPatch =
-  | {
-      text: TextDataPatch
-    }
-  | {
-      image: ImageDataPatch
-    }
-  | {
-      mask: MaskDataPatch
-    }
+export type NodeDataPatch = {
+  text: TextDataPatch;
+} | {
+  image: ImageDataPatch;
+} | {
+  mask: MaskDataPatch;
+};

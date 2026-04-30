@@ -87,6 +87,7 @@ async fn start_pipeline(
             text_node_ids: req.text_node_ids,
             region: req.region,
         },
+        parallelism: app.config.load().pipeline.parallelism.clone(),
     };
 
     let operation_id = Uuid::new_v4().to_string();

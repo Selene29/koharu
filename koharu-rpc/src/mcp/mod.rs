@@ -191,6 +191,7 @@ impl KoharuServer {
                 text_node_ids: input.text_node_ids,
                 region: None,
             },
+            parallelism: app.config.load().pipeline.parallelism.clone(),
         };
         let job_id = Uuid::new_v4().to_string();
         let cancel = Arc::new(AtomicBool::new(false));

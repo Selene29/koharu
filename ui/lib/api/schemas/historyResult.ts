@@ -6,9 +6,9 @@
 
 export interface HistoryResult {
   /**
-   * New epoch. `None` only for a no-op undo/redo at the stack boundary.
-   * @minimum 0
-   * @nullable
-   */
-  epoch?: number | null
+     * New epoch. `None` only for a no-op undo/redo at the stack boundary.
+     * @minimum 0
+     * @nullable
+     */
+  epoch?: number | null;
 }

@@ -4,11 +4,12 @@
  * OpenAPI spec version: 0.0.1
  */
 
-export type ExportFormat = (typeof ExportFormat)[keyof typeof ExportFormat]
+export type ExportFormat = typeof ExportFormat[keyof typeof ExportFormat];
+
 
 export const ExportFormat = {
   khr: 'khr',
   psd: 'psd',
   rendered: 'rendered',
   inpainted: 'inpainted',
-} as const
+} as const;

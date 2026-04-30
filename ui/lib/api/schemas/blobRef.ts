@@ -7,4 +7,4 @@
 /**
  * Hex-encoded blake3 hash of an immutable blob.
  */
-export type BlobRef = string
+export type BlobRef = string;

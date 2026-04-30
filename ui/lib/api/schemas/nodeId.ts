@@ -4,4 +4,4 @@
  * OpenAPI spec version: 0.0.1
  */
 
-export type NodeId = string
+export type NodeId = string;

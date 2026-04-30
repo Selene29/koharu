@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**downloaded** | **bool** |  | 
 **languages** | **Vec<String>** |  | 
 **name** | **String** |  | 
 **target** | [**models::LlmTarget**](LlmTarget.md) |  | 

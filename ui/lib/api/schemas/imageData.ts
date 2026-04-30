@@ -3,19 +3,19 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { BlobRef } from './blobRef'
-import type { ImageRole } from './imageRole'
+import type { BlobRef } from './blobRef';
+import type { ImageRole } from './imageRole';
 
 export interface ImageData {
-  blob: BlobRef
+  blob: BlobRef;
   /** @nullable */
-  name?: string | null
+  name?: string | null;
   /** @minimum 0 */
-  naturalHeight: number
+  naturalHeight: number;
   /** @minimum 0 */
-  naturalWidth: number
-  opacity?: number
+  naturalWidth: number;
+  opacity?: number;
   /** Role tags differentiate source / inpainted / rendered / user-imported images.
   Role is immutable on an existing node — switching roles = delete + add. */
-  role: ImageRole
+  role: ImageRole;
 }

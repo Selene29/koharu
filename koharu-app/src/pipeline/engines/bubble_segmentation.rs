@@ -10,7 +10,7 @@ use koharu_core::{MaskRole, Op};
 use koharu_ml::speech_bubble_segmentation::{SpeechBubbleRegion, SpeechBubbleSegmentation};
 
 use crate::pipeline::artifacts::Artifact;
-use crate::pipeline::engine::{Engine, EngineCtx, EngineInfo};
+use crate::pipeline::engine::{Engine, EngineCtx, EngineInfo, EngineResource};
 use crate::pipeline::engines::support::{load_source_image, upsert_mask_blob};
 
 pub struct Model(SpeechBubbleSegmentation);
@@ -70,6 +70,7 @@ inventory::submit! {
         name: "Speech Bubble Segmentation",
         needs: &[],
         produces: &[Artifact::BubbleMask],
+        resource: EngineResource::Model,
         load: |runtime, cpu| Box::pin(async move {
             let m = SpeechBubbleSegmentation::load(runtime, cpu).await?;
             Ok(Box::new(Model(m)) as Box<dyn Engine>)

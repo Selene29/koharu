@@ -3,17 +3,17 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { DownloadStatus } from './downloadStatus'
+import type { DownloadStatus } from './downloadStatus';
 
 export interface DownloadProgress {
   /** @minimum 0 */
-  downloaded: number
-  filename: string
-  id: string
-  status: DownloadStatus
+  downloaded: number;
+  filename: string;
+  id: string;
+  status: DownloadStatus;
   /**
-   * @minimum 0
-   * @nullable
-   */
-  total?: number | null
+     * @minimum 0
+     * @nullable
+     */
+  total?: number | null;
 }

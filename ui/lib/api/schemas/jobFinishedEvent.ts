@@ -3,11 +3,11 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { JobStatus } from './jobStatus'
+import type { JobStatus } from './jobStatus';
 
 export interface JobFinishedEvent {
   /** @nullable */
-  error?: string | null
-  id: string
-  status: JobStatus
+  error?: string | null;
+  id: string;
+  status: JobStatus;
 }

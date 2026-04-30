@@ -5,5 +5,5 @@
  */
 
 export interface CodexImageGenerationResponse {
-  operationId: string
+  operationId: string;
 }

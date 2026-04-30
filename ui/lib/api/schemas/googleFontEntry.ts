@@ -3,11 +3,11 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { GoogleFontVariant } from './googleFontVariant'
+import type { GoogleFontVariant } from './googleFontVariant';
 
 export interface GoogleFontEntry {
-  category: string
-  family: string
-  subsets: string[]
-  variants: GoogleFontVariant[]
+  category: string;
+  family: string;
+  subsets: string[];
+  variants: GoogleFontVariant[];
 }

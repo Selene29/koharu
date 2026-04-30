@@ -3,8 +3,8 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { NodeId } from './nodeId'
+import type { NodeId } from './nodeId';
 
 export interface AddImageLayerResponse {
-  node: NodeId
+  node: NodeId;
 }

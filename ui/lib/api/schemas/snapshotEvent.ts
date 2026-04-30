@@ -3,10 +3,10 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { DownloadProgress } from './downloadProgress'
-import type { JobSummary } from './jobSummary'
+import type { DownloadProgress } from './downloadProgress';
+import type { JobSummary } from './jobSummary';
 
 export interface SnapshotEvent {
-  downloads: DownloadProgress[]
-  jobs: JobSummary[]
+  downloads: DownloadProgress[];
+  jobs: JobSummary[];
 }

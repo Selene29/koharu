@@ -4,17 +4,13 @@
  * OpenAPI spec version: 0.0.1
  */
 
-export type DownloadStatus =
-  | {
-      status: 'started'
-    }
-  | {
-      status: 'downloading'
-    }
-  | {
-      status: 'completed'
-    }
-  | {
-      reason: string
-      status: 'failed'
-    }
+export type DownloadStatus = {
+  status: 'started';
+} | {
+  status: 'downloading';
+} | {
+  status: 'completed';
+} | {
+  reason: string;
+  status: 'failed';
+};

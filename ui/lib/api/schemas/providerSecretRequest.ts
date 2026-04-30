@@ -5,5 +5,5 @@
  */
 
 export interface ProviderSecretRequest {
-  secret: string
+  secret: string;
 }

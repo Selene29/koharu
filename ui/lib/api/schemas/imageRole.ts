@@ -4,11 +4,12 @@
  * OpenAPI spec version: 0.0.1
  */
 
-export type ImageRole = (typeof ImageRole)[keyof typeof ImageRole]
+export type ImageRole = typeof ImageRole[keyof typeof ImageRole];
+
 
 export const ImageRole = {
   source: 'source',
   inpainted: 'inpainted',
   rendered: 'rendered',
   custom: 'custom',
-} as const
+} as const;

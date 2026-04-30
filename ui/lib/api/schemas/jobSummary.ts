@@ -3,12 +3,12 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { JobStatus } from './jobStatus'
+import type { JobStatus } from './jobStatus';
 
 export interface JobSummary {
   /** @nullable */
-  error?: string | null
-  id: string
-  kind: string
-  status: JobStatus
+  error?: string | null;
+  id: string;
+  kind: string;
+  status: JobStatus;
 }

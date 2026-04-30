@@ -14,6 +14,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PagePatch {
     #[serde(
+        rename = "completed",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub completed: Option<Option<bool>>,
+    #[serde(
         rename = "height",
         default,
         with = "::serde_with::rust::double_option",
@@ -39,6 +46,7 @@ pub struct PagePatch {
 impl PagePatch {
     pub fn new() -> PagePatch {
         PagePatch {
+            completed: None,
             height: None,
             name: None,
             width: None,

@@ -3,19 +3,21 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { PageId } from './pageId'
-import type { PageNodes } from './pageNodes'
+import type { PageId } from './pageId';
+import type { PageNodes } from './pageNodes';
 
 export interface Page {
-  /** Whether this page is considered fully processed / ready for export. */
-  completed: boolean
+  /** Whether this page is considered fully processed / ready for export.
+  Auto-set by the pipeline when a page finishes all steps (or has no
+  text to process). Can also be toggled manually by the user. */
+  completed?: boolean;
   /** @minimum 0 */
-  height: number
-  id: PageId
-  name: string
+  height: number;
+  id: PageId;
+  name: string;
   /** Stacking = insertion order. Bottom-first: `source` is typically first,
   `rendered` typically last. */
-  nodes: PageNodes
+  nodes: PageNodes;
   /** @minimum 0 */
-  width: number
+  width: number;
 }

@@ -4,11 +4,11 @@
  * OpenAPI spec version: 0.0.1
  */
 
-export type CodexAuthAttemptStatus =
-  (typeof CodexAuthAttemptStatus)[keyof typeof CodexAuthAttemptStatus]
+export type CodexAuthAttemptStatus = typeof CodexAuthAttemptStatus[keyof typeof CodexAuthAttemptStatus];
+
 
 export const CodexAuthAttemptStatus = {
   pending: 'pending',
   succeeded: 'succeeded',
   failed: 'failed',
-} as const
+} as const;

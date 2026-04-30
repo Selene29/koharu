@@ -15,22 +15,32 @@ use serde::{Deserialize, Serialize};
 pub struct AppEventOneOf8 {
     #[serde(rename = "event")]
     pub event: Event,
+    #[serde(
+        rename = "target",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub target: Option<Option<Box<models::LlmTarget>>>,
 }
 
 impl AppEventOneOf8 {
     pub fn new(event: Event) -> AppEventOneOf8 {
-        AppEventOneOf8 { event }
+        AppEventOneOf8 {
+            event,
+            target: None,
+        }
     }
 }
 ///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Event {
-    #[serde(rename = "projectClosed")]
-    ProjectClosed,
+    #[serde(rename = "llmFailed")]
+    LlmFailed,
 }
 
 impl Default for Event {
     fn default() -> Event {
-        Self::ProjectClosed
+        Self::LlmFailed
     }
 }

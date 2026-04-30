@@ -220,6 +220,19 @@ pub struct PipelineConfigPatch {
     pub translator: Option<String>,
     pub inpainter: Option<String>,
     pub renderer: Option<String>,
+    #[serde(default)]
+    pub parallelism: Option<PipelineParallelismConfigPatch>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PipelineParallelismConfigPatch {
+    pub max_pages_in_flight: Option<usize>,
+    pub max_active_steps: Option<usize>,
+    pub max_model_steps: Option<usize>,
+    pub max_llm_steps: Option<usize>,
+    pub max_render_steps: Option<usize>,
+    pub max_same_engine_steps: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToSchema)]

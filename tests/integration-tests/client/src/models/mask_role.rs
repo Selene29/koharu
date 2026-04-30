@@ -18,6 +18,8 @@ pub enum MaskRole {
     BrushInpaint,
     #[serde(rename = "segment")]
     Segment,
+    #[serde(rename = "bubble")]
+    Bubble,
 }
 
 impl std::fmt::Display for MaskRole {
@@ -25,6 +27,7 @@ impl std::fmt::Display for MaskRole {
         match self {
             Self::BrushInpaint => write!(f, "brushInpaint"),
             Self::Segment => write!(f, "segment"),
+            Self::Bubble => write!(f, "bubble"),
         }
     }
 }

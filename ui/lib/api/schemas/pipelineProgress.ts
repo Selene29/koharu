@@ -3,21 +3,21 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { PipelineStatus } from './pipelineStatus'
-import type { PipelineStep } from './pipelineStep'
+import type { PipelineStatus } from './pipelineStatus';
+import type { PipelineStep } from './pipelineStep';
 
 export interface PipelineProgress {
   /** @minimum 0 */
-  currentPage: number
+  currentPage: number;
   /** @minimum 0 */
-  currentStepIndex: number
-  jobId: string
+  currentStepIndex: number;
+  jobId: string;
   /** @minimum 0 */
-  overallPercent: number
-  status: PipelineStatus
-  step?: null | PipelineStep
+  overallPercent: number;
+  status: PipelineStatus;
+  step?: null | PipelineStep;
   /** @minimum 0 */
-  totalPages: number
+  totalPages: number;
   /** @minimum 0 */
-  totalSteps: number
+  totalSteps: number;
 }

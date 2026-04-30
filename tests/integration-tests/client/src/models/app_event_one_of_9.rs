@@ -15,27 +15,22 @@ use serde::{Deserialize, Serialize};
 pub struct AppEventOneOf9 {
     #[serde(rename = "event")]
     pub event: Event,
-    #[serde(rename = "target")]
-    pub target: Box<models::LlmTarget>,
 }
 
 impl AppEventOneOf9 {
-    pub fn new(event: Event, target: models::LlmTarget) -> AppEventOneOf9 {
-        AppEventOneOf9 {
-            event,
-            target: Box::new(target),
-        }
+    pub fn new(event: Event) -> AppEventOneOf9 {
+        AppEventOneOf9 { event }
     }
 }
 ///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Event {
-    #[serde(rename = "llmLoaded")]
-    LlmLoaded,
+    #[serde(rename = "llmUnloaded")]
+    LlmUnloaded,
 }
 
 impl Default for Event {
     fn default() -> Event {
-        Self::LlmLoaded
+        Self::LlmUnloaded
     }
 }

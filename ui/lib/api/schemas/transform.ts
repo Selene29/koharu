@@ -5,9 +5,9 @@
  */
 
 export interface Transform {
-  height: number
-  rotationDeg?: number
-  width: number
-  x: number
-  y: number
+  height: number;
+  rotationDeg?: number;
+  width: number;
+  x: number;
+  y: number;
 }

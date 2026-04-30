@@ -7,7 +7,7 @@ use koharu_core::{Op, TextData, TextDirection};
 use koharu_ml::pp_doclayout_v3::{LayoutRegion, PPDocLayoutV3};
 
 use crate::pipeline::artifacts::Artifact;
-use crate::pipeline::engine::{Engine, EngineCtx, EngineInfo};
+use crate::pipeline::engine::{Engine, EngineCtx, EngineInfo, EngineResource};
 use crate::pipeline::engines::support::{clear_text_nodes_ops, load_source_image, new_text_node};
 
 const VERTICAL_ASPECT: f32 = 1.15;
@@ -47,6 +47,7 @@ inventory::submit! {
         name: "PP-DocLayout V3",
         needs: &[],
         produces: &[Artifact::TextBoxes],
+        resource: EngineResource::Model,
         load: |runtime, cpu| Box::pin(async move {
             let m = PPDocLayoutV3::load(runtime, cpu).await?;
             Ok(Box::new(Model(m)) as Box<dyn Engine>)

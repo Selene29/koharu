@@ -3,8 +3,8 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { JobSummary } from './jobSummary'
+import type { JobSummary } from './jobSummary';
 
 export interface ListOperationsResponse {
-  operations: JobSummary[]
+  operations: JobSummary[];
 }

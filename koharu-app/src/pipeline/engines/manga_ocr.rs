@@ -9,7 +9,7 @@ use koharu_ml::comic_text_detector::crop_text_block_bbox;
 use koharu_ml::manga_ocr::MangaOcr;
 
 use crate::pipeline::artifacts::Artifact;
-use crate::pipeline::engine::{Engine, EngineCtx, EngineInfo};
+use crate::pipeline::engine::{Engine, EngineCtx, EngineInfo, EngineResource};
 use crate::pipeline::engines::support::{load_source_image, text_node_to_region, text_nodes};
 
 pub struct Model(MangaOcr);
@@ -57,6 +57,7 @@ inventory::submit! {
         name: "Manga OCR",
         needs: &[Artifact::TextBoxes],
         produces: &[Artifact::OcrText],
+        resource: EngineResource::Model,
         load: |runtime, cpu| Box::pin(async move {
             let m = MangaOcr::load(runtime, cpu).await?;
             Ok(Box::new(Model(m)) as Box<dyn Engine>)

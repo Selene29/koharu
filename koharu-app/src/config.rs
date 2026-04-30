@@ -78,6 +78,48 @@ pub struct PipelineConfig {
     pub translator: String,
     pub inpainter: String,
     pub renderer: String,
+    pub parallelism: PipelineParallelismConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(default)]
+pub struct PipelineParallelismConfig {
+    pub max_pages_in_flight: usize,
+    pub max_active_steps: usize,
+    pub max_model_steps: usize,
+    pub max_llm_steps: usize,
+    pub max_render_steps: usize,
+    pub max_same_engine_steps: usize,
+}
+
+const PIPELINE_PARALLELISM_MAX: usize = 32;
+
+impl PipelineParallelismConfig {
+    pub fn normalize(&mut self) {
+        self.max_pages_in_flight = clamp_parallelism(self.max_pages_in_flight);
+        self.max_active_steps = clamp_parallelism(self.max_active_steps);
+        self.max_model_steps = clamp_parallelism(self.max_model_steps);
+        self.max_llm_steps = clamp_parallelism(self.max_llm_steps);
+        self.max_render_steps = clamp_parallelism(self.max_render_steps);
+        self.max_same_engine_steps = clamp_parallelism(self.max_same_engine_steps);
+    }
+}
+
+impl Default for PipelineParallelismConfig {
+    fn default() -> Self {
+        Self {
+            max_pages_in_flight: 2,
+            max_active_steps: 2,
+            max_model_steps: 1,
+            max_llm_steps: 1,
+            max_render_steps: 1,
+            max_same_engine_steps: 1,
+        }
+    }
+}
+
+fn clamp_parallelism(value: usize) -> usize {
+    value.clamp(1, PIPELINE_PARALLELISM_MAX)
 }
 
 impl Default for PipelineConfig {
@@ -91,6 +133,7 @@ impl Default for PipelineConfig {
             translator: "llm".to_string(),
             inpainter: "lama-manga".to_string(),
             renderer: "koharu-renderer".to_string(),
+            parallelism: PipelineParallelismConfig::default(),
         }
     }
 }
@@ -235,6 +278,26 @@ pub fn apply_patch(config: &mut AppConfig, patch: koharu_core::ConfigPatch) {
         if let Some(v) = p.renderer {
             config.pipeline.renderer = v;
         }
+        if let Some(v) = p.parallelism {
+            if let Some(value) = v.max_pages_in_flight {
+                config.pipeline.parallelism.max_pages_in_flight = value;
+            }
+            if let Some(value) = v.max_active_steps {
+                config.pipeline.parallelism.max_active_steps = value;
+            }
+            if let Some(value) = v.max_model_steps {
+                config.pipeline.parallelism.max_model_steps = value;
+            }
+            if let Some(value) = v.max_llm_steps {
+                config.pipeline.parallelism.max_llm_steps = value;
+            }
+            if let Some(value) = v.max_render_steps {
+                config.pipeline.parallelism.max_render_steps = value;
+            }
+            if let Some(value) = v.max_same_engine_steps {
+                config.pipeline.parallelism.max_same_engine_steps = value;
+            }
+        }
     }
     if let Some(providers) = patch.providers {
         let mut new_providers = Vec::with_capacity(providers.len());
@@ -312,6 +375,14 @@ fn validate_pipeline_config(config: &mut AppConfig) -> bool {
         &defaults.renderer,
         Artifact::FinalRender,
     );
+    let before = config.pipeline.parallelism.clone();
+    config.pipeline.parallelism.normalize();
+    changed |= before.max_pages_in_flight != config.pipeline.parallelism.max_pages_in_flight
+        || before.max_active_steps != config.pipeline.parallelism.max_active_steps
+        || before.max_model_steps != config.pipeline.parallelism.max_model_steps
+        || before.max_llm_steps != config.pipeline.parallelism.max_llm_steps
+        || before.max_render_steps != config.pipeline.parallelism.max_render_steps
+        || before.max_same_engine_steps != config.pipeline.parallelism.max_same_engine_steps;
 
     changed
 }
@@ -384,7 +455,7 @@ fn provider_api_key_secret_key(provider_id: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use koharu_core::{ConfigPatch, PipelineConfigPatch};
+    use koharu_core::{ConfigPatch, PipelineConfigPatch, PipelineParallelismConfigPatch};
 
     #[test]
     fn old_config_without_providers_still_loads() {
@@ -463,5 +534,44 @@ mod tests {
         );
 
         assert_eq!(config.pipeline.renderer, PipelineConfig::default().renderer);
+    }
+
+    #[test]
+    fn default_parallelism_is_conservative() {
+        let config = AppConfig::default();
+
+        assert_eq!(config.pipeline.parallelism.max_pages_in_flight, 2);
+        assert_eq!(config.pipeline.parallelism.max_active_steps, 2);
+        assert_eq!(config.pipeline.parallelism.max_model_steps, 1);
+        assert_eq!(config.pipeline.parallelism.max_llm_steps, 1);
+        assert_eq!(config.pipeline.parallelism.max_render_steps, 1);
+        assert_eq!(config.pipeline.parallelism.max_same_engine_steps, 1);
+    }
+
+    #[test]
+    fn apply_patch_clamps_parallelism() {
+        let mut config = AppConfig::default();
+        apply_patch(
+            &mut config,
+            ConfigPatch {
+                pipeline: Some(PipelineConfigPatch {
+                    parallelism: Some(PipelineParallelismConfigPatch {
+                        max_pages_in_flight: Some(0),
+                        max_active_steps: Some(99),
+                        max_model_steps: Some(3),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(config.pipeline.parallelism.max_pages_in_flight, 1);
+        assert_eq!(
+            config.pipeline.parallelism.max_active_steps,
+            PIPELINE_PARALLELISM_MAX
+        );
+        assert_eq!(config.pipeline.parallelism.max_model_steps, 3);
     }
 }

@@ -3,8 +3,8 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { PageId } from './pageId'
+import type { PageId } from './pageId';
 
 export interface CreatePagesResponse {
-  pages: PageId[]
+  pages: PageId[];
 }

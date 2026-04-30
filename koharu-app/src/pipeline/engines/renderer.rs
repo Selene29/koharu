@@ -15,7 +15,7 @@ use koharu_core::{
 use koharu_llm::Language;
 
 use crate::pipeline::artifacts::Artifact;
-use crate::pipeline::engine::{Engine, EngineCtx, EngineInfo};
+use crate::pipeline::engine::{Engine, EngineCtx, EngineInfo, EngineResource};
 use crate::pipeline::engines::support::{
     find_image_node, find_mask_node, image_dimensions, load_source_image, text_nodes,
     upsert_image_blob,
@@ -150,6 +150,7 @@ inventory::submit! {
             Artifact::FontPredictions,
         ],
         produces: &[Artifact::FinalRender, Artifact::RenderedSprites],
+        resource: EngineResource::Render,
         load: |_runtime, _cpu| Box::pin(async move {
             Ok(Box::new(Model) as Box<dyn Engine>)
         }),

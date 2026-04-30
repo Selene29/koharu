@@ -5,5 +5,5 @@
  */
 
 export interface CreateProjectRequest {
-  name: string
+  name: string;
 }

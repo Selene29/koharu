@@ -3,10 +3,10 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { BlobRef } from './blobRef'
-import type { NodeId } from './nodeId'
+import type { BlobRef } from './blobRef';
+import type { NodeId } from './nodeId';
 
 export interface PutMaskResponse {
-  blob: BlobRef
-  node: NodeId
+  blob: BlobRef;
+  node: NodeId;
 }

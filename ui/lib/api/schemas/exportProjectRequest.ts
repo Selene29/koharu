@@ -3,14 +3,14 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { ExportFormat } from './exportFormat'
-import type { PageId } from './pageId'
+import type { ExportFormat } from './exportFormat';
+import type { PageId } from './pageId';
 
 export interface ExportProjectRequest {
-  format: ExportFormat
+  format: ExportFormat;
   /**
-   * Optional subset of pages; defaults to every page.
-   * @nullable
-   */
-  pages?: PageId[] | null
+     * Optional subset of pages; defaults to every page.
+     * @nullable
+     */
+  pages?: PageId[] | null;
 }
