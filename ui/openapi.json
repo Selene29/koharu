@@ -1252,6 +1252,12 @@
               "type": "string"
             }
           },
+          "relativePaths": {
+            "type": ["array", "null"],
+            "items": {
+              "type": ["string", "null"]
+            }
+          },
           "replace": {
             "type": "boolean"
           }

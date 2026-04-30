@@ -20,8 +20,8 @@ function seedSceneQuery(): void {
 }
 
 vi.mock('@/lib/io/openFiles', () => ({
-  openImageFiles: vi.fn().mockResolvedValue([]),
-  openImageFolder: vi.fn().mockResolvedValue([]),
+  openImageFiles: vi.fn().mockResolvedValue({ kind: 'files', entries: [] }),
+  openImageFolder: vi.fn().mockResolvedValue({ kind: 'files', entries: [] }),
   openKhrFile: vi.fn().mockResolvedValue(null),
 }))
 

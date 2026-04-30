@@ -6,5 +6,6 @@
 
 export interface CreatePagesFromPathsRequest {
   paths: string[]
+  relativePaths?: Array<string | null> | null
   replace?: boolean
 }
