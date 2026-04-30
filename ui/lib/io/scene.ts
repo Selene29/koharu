@@ -28,6 +28,7 @@ import type {
   ProjectSummary,
   SceneSnapshot,
 } from '@/lib/api/schemas'
+import type { ImageFileEntry, ImagePathEntry } from '@/lib/io/openFiles'
 import { filenameFromContentDisposition } from '@/lib/io/saveBlob'
 import { queryClient } from '@/lib/queryClient'
 import { usePreferencesStore } from '@/lib/stores/preferencesStore'
@@ -155,9 +156,21 @@ export async function closeProject(): Promise<void> {
 
 // Pages import ---------------------------------------------------------------
 
-export async function uploadPages(files: File[], replace: boolean): Promise<string[]> {
+export async function uploadPages(
+  entries: Array<File | ImageFileEntry>,
+  replace: boolean,
+): Promise<string[]> {
   const form = new FormData()
-  for (const file of files) form.append('file', file, file.name)
+  for (const entry of entries) {
+    const file = entry instanceof File ? entry : entry.file
+    const relativePath = entry instanceof File ? undefined : entry.relativePath
+    if (relativePath) form.append('relativePath', relativePath)
+    form.append(
+      'file',
+      relativePath ? new Blob([file], { type: file.type }) : file,
+      relativePath ?? file.name,
+    )
+  }
   form.append('replace', replace ? 'true' : 'false')
   const res = await createPages({ body: form })
   await invalidateScene()
@@ -169,8 +182,18 @@ export async function uploadPages(files: File[], replace: boolean): Promise<stri
  * the per-file `readFile` IPC round-trip, skips JS-side buffering, skips
  * multipart upload — the Rust side reads + decodes + hashes in parallel.
  */
-export async function uploadPagesByPaths(paths: string[], replace: boolean): Promise<string[]> {
-  const res = await createPagesFromPaths({ paths, replace })
+export async function uploadPagesByPaths(
+  entries: Array<string | ImagePathEntry>,
+  replace: boolean,
+): Promise<string[]> {
+  const paths = entries.map((entry) => (typeof entry === 'string' ? entry : entry.path))
+  const relativePaths = entries.map((entry): string | null =>
+    typeof entry === 'string' ? null : (entry.relativePath ?? null),
+  )
+  const req = relativePaths.some((path): path is string => !!path)
+    ? { paths, relativePaths, replace }
+    : { paths, replace }
+  const res = await createPagesFromPaths(req)
   await invalidateScene()
   return res.pages
 }

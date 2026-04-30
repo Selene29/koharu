@@ -282,11 +282,11 @@ async fn export_current_project(
             ))
         }
         ExportFormat::Psd => {
-            let page_ids = resolve_page_ids(&session, req.pages.as_deref())?;
-            if page_ids.is_empty() {
+            let pages = resolve_export_pages(&session, req.pages.as_deref())?;
+            if pages.is_empty() {
                 return Err(ApiError::bad_request("no pages in selection"));
             }
-            let total = page_ids.len();
+            let total = pages.len();
             emit_export_log(
                 &bus,
                 &job_id,
@@ -296,30 +296,35 @@ async fn export_current_project(
                 None,
             );
             let session_c = session.clone();
-            let page_ids_c = page_ids.clone();
+            let pages_c = pages.clone();
             let bus_c = bus.clone();
             let job_id_c = job_id.clone();
             let files = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
                 let done = AtomicUsize::new(0);
-                page_ids_c
+                pages_c
                     .par_iter()
                     .enumerate()
-                    .map(|(i, id)| -> anyhow::Result<(String, Vec<u8>)> {
-                        let t0 = std::time::Instant::now();
-                        let bytes = crate::psd_export::psd_bytes_for_page(&session_c, *id)?;
-                        let size = bytes.len();
-                        let n = done.fetch_add(1, Ordering::Relaxed) + 1;
-                        log_page_progress(
-                            &bus_c,
-                            &job_id_c,
-                            "psd",
-                            n,
-                            total,
-                            t0.elapsed(),
-                            size,
-                        );
-                        Ok((format!("page-{:03}-{id}.psd", i + 1), bytes))
-                    })
+                    .map(
+                        |(i, (id, page_name))| -> anyhow::Result<(String, Vec<u8>)> {
+                            let t0 = std::time::Instant::now();
+                            let bytes = crate::psd_export::psd_bytes_for_page(&session_c, *id)?;
+                            let size = bytes.len();
+                            let n = done.fetch_add(1, Ordering::Relaxed) + 1;
+                            log_page_progress(
+                                &bus_c,
+                                &job_id_c,
+                                "psd",
+                                n,
+                                total,
+                                t0.elapsed(),
+                                size,
+                            );
+                            Ok((
+                                export_entry_name(page_name, i + 1, *id, "_koharu", "psd"),
+                                bytes,
+                            ))
+                        },
+                    )
                     .collect::<anyhow::Result<Vec<_>>>()
             })
             .await
@@ -393,11 +398,11 @@ async fn export_image_role(
     job_id: &str,
     format_label: &str,
 ) -> ApiResult<Response> {
-    let page_ids = resolve_page_ids(session, pages)?;
-    if page_ids.is_empty() {
+    let export_pages = resolve_export_pages(session, pages)?;
+    if export_pages.is_empty() {
         return Err(ApiError::bad_request("no pages in selection"));
     }
-    let total = page_ids.len();
+    let total = export_pages.len();
     emit_export_log(
         bus,
         job_id,
@@ -407,7 +412,7 @@ async fn export_image_role(
         None,
     );
     let session_c = session.clone();
-    let page_ids_c = page_ids.clone();
+    let export_pages_c = export_pages.clone();
     let bus_c = bus.clone();
     let job_id_c = job_id.to_string();
     let format_label_c = format_label.to_string();
@@ -417,41 +422,50 @@ async fn export_image_role(
         // Pages are independent: PNG-encoding them in parallel scales close
         // to linearly with cores. Source-fallback semantics from the
         // single-threaded version are preserved.
-        let results: Vec<Option<(String, Vec<u8>)>> = page_ids_c
+        let results: Vec<Option<(String, Vec<u8>)>> = export_pages_c
             .par_iter()
             .enumerate()
-            .map(|(i, id)| -> anyhow::Result<Option<(String, Vec<u8>)>> {
-                let t0 = std::time::Instant::now();
-                let (bytes, used_source) =
-                    match crate::psd_export::png_bytes_for_page(&session_c, *id, role)? {
-                        Some(b) => (b, false),
-                        None => match crate::psd_export::png_bytes_for_page(
-                            &session_c,
-                            *id,
-                            ImageRole::Source,
-                        )? {
-                            Some(b) => {
-                                fallbacks.fetch_add(1, Ordering::Relaxed);
-                                (b, true)
-                            }
-                            None => return Ok(None),
-                        },
+            .map(
+                |(i, (id, page_name))| -> anyhow::Result<Option<(String, Vec<u8>)>> {
+                    let t0 = std::time::Instant::now();
+                    let (bytes, used_source) =
+                        match crate::psd_export::png_bytes_for_page(&session_c, *id, role)? {
+                            Some(b) => (b, false),
+                            None => match crate::psd_export::png_bytes_for_page(
+                                &session_c,
+                                *id,
+                                ImageRole::Source,
+                            )? {
+                                Some(b) => {
+                                    fallbacks.fetch_add(1, Ordering::Relaxed);
+                                    (b, true)
+                                }
+                                None => return Ok(None),
+                            },
+                        };
+                    let suffix = if used_source {
+                        "_source"
+                    } else {
+                        image_role_suffix(role)
                     };
-                let suffix = if used_source { "-source" } else { "" };
-                let size = bytes.len();
-                let entry = (format!("page-{:03}-{id}{suffix}.png", i + 1), bytes);
-                let n = done.fetch_add(1, Ordering::Relaxed) + 1;
-                log_page_progress(
-                    &bus_c,
-                    &job_id_c,
-                    &format_label_c,
-                    n,
-                    total,
-                    t0.elapsed(),
-                    size,
-                );
-                Ok(Some(entry))
-            })
+                    let size = bytes.len();
+                    let entry = (
+                        export_entry_name(page_name, i + 1, *id, suffix, role_ext(role)),
+                        bytes,
+                    );
+                    let n = done.fetch_add(1, Ordering::Relaxed) + 1;
+                    log_page_progress(
+                        &bus_c,
+                        &job_id_c,
+                        &format_label_c,
+                        n,
+                        total,
+                        t0.elapsed(),
+                        size,
+                    );
+                    Ok(Some(entry))
+                },
+            )
             .collect::<anyhow::Result<Vec<_>>>()?;
         let out: Vec<(String, Vec<u8>)> = results.into_iter().flatten().collect();
         let fallbacks = fallbacks.load(Ordering::Relaxed);
@@ -461,9 +475,7 @@ async fn export_image_role(
                 &job_id_c,
                 &format_label_c,
                 JobLogLevel::Warn,
-                format!(
-                    "{fallbacks}/{total} page(s) used Source fallback (no {role:?} layer)"
-                ),
+                format!("{fallbacks}/{total} page(s) used Source fallback (no {role:?} layer)"),
                 None,
             );
         }
@@ -542,21 +554,37 @@ fn log_page_progress(
     }
 }
 
-fn resolve_page_ids(
+fn resolve_export_pages(
     session: &koharu_app::ProjectSession,
     requested: Option<&[PageId]>,
-) -> ApiResult<Vec<PageId>> {
+) -> ApiResult<Vec<(PageId, String)>> {
     let scene = session.scene.read();
     match requested {
-        None => Ok(scene.pages.keys().copied().collect()),
+        None => Ok(scene
+            .pages
+            .iter()
+            .map(|(id, page)| (*id, page.name.clone()))
+            .collect()),
         Some(ids) => {
+            let mut out = Vec::with_capacity(ids.len());
             for id in ids {
-                if !scene.pages.contains_key(id) {
-                    return Err(ApiError::not_found(format!("page {id}")));
-                }
+                let page = scene
+                    .pages
+                    .get(id)
+                    .ok_or_else(|| ApiError::not_found(format!("page {id}")))?;
+                out.push((*id, page.name.clone()));
             }
-            Ok(ids.to_vec())
+            Ok(out)
         }
+    }
+}
+
+fn image_role_suffix(role: ImageRole) -> &'static str {
+    match role {
+        ImageRole::Rendered => "_koharu",
+        ImageRole::Inpainted => "_inpainted",
+        ImageRole::Source => "_source",
+        ImageRole::Custom => "_custom",
     }
 }
 
@@ -569,6 +597,27 @@ fn role_ext(role: ImageRole) -> &'static str {
     }
 }
 
+fn export_entry_name(page_name: &str, index: usize, id: PageId, suffix: &str, ext: &str) -> String {
+    let fallback = format!("page-{index:03}-{id}.{ext}");
+    let normalized = crate::routes::pages::normalize_page_relative_path(page_name, &fallback);
+    let (dir, leaf) = normalized
+        .rsplit_once('/')
+        .map_or(("", normalized.as_str()), |(dir, leaf)| (dir, leaf));
+    let stem = leaf
+        .rsplit_once('.')
+        .map_or(leaf, |(stem, _)| if stem.is_empty() { leaf } else { stem });
+    let filename = if stem.is_empty() {
+        format!("page-{index:03}-{id}{suffix}.{ext}")
+    } else {
+        format!("{stem}{suffix}.{ext}")
+    };
+    if dir.is_empty() {
+        filename
+    } else {
+        format!("{dir}/{filename}")
+    }
+}
+
 fn files_to_response(
     mut files: Vec<(String, Vec<u8>)>,
     project_name: &str,
@@ -576,13 +625,14 @@ fn files_to_response(
 ) -> ApiResult<Response> {
     if files.len() == 1 {
         let (fname, bytes) = files.remove(0);
+        let filename = content_disposition_basename(&fname);
         let content_type = match ext {
             "psd" => "image/vnd.adobe.photoshop",
             "png" => "image/png",
             "khr" => "application/octet-stream",
             _ => "application/octet-stream",
         };
-        return Ok(bytes_response_with_filename(bytes, &fname, content_type));
+        return Ok(bytes_response_with_filename(bytes, &filename, content_type));
     }
     let zip_bytes = koharu_app::archive::zip_files_to_bytes(&files).map_err(ApiError::internal)?;
     let base = sanitize(project_name, "export");
@@ -592,6 +642,14 @@ fn files_to_response(
         &filename,
         "application/zip",
     ))
+}
+
+fn content_disposition_basename(path: &str) -> String {
+    path.rsplit(['/', '\\'])
+        .next()
+        .filter(|name| !name.is_empty())
+        .unwrap_or("export")
+        .to_string()
 }
 
 fn bytes_response(bytes: Vec<u8>, base: &str, ext: &str, content_type: &str) -> Response {
@@ -623,5 +681,54 @@ fn sanitize(name: &str, fallback: &str) -> String {
         fallback.to_string()
     } else {
         s
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{content_disposition_basename, export_entry_name};
+    use koharu_core::PageId;
+    use uuid::Uuid;
+
+    fn stable_page_id() -> PageId {
+        PageId(Uuid::parse_str("018f6d6f-4a90-7000-8000-000000000001").unwrap())
+    }
+
+    #[test]
+    fn export_entry_name_preserves_chapter_directories() {
+        let id = stable_page_id();
+        assert_eq!(
+            export_entry_name("Chapter 01/001.jpg", 1, id, "_koharu", "png"),
+            "Chapter 01/001_koharu.png"
+        );
+        assert_eq!(
+            export_entry_name("Chapter 01/001.jpg", 1, id, "_inpainted", "png"),
+            "Chapter 01/001_inpainted.png"
+        );
+        assert_eq!(
+            export_entry_name("Chapter 01/001.jpg", 1, id, "_koharu", "psd"),
+            "Chapter 01/001_koharu.psd"
+        );
+        assert_eq!(
+            export_entry_name("Chapter 01/001.jpg", 1, id, "_source", "png"),
+            "Chapter 01/001_source.png"
+        );
+    }
+
+    #[test]
+    fn export_entry_name_sanitizes_traversal() {
+        let id = stable_page_id();
+        assert_eq!(
+            export_entry_name("../Chapter:01/001?.jpg", 1, id, "_koharu", "png"),
+            "Chapter_01/001__koharu.png"
+        );
+    }
+
+    #[test]
+    fn single_file_content_disposition_uses_basename() {
+        assert_eq!(
+            content_disposition_basename("Chapter 01/001_koharu.png"),
+            "001_koharu.png"
+        );
     }
 }

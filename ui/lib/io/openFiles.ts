@@ -3,8 +3,8 @@
 /**
  * Unified open-file pickers that use the Tauri dialog plugin when available
  * and fall back to the web File System Access API (via `browser-fs-access`)
- * otherwise. Both paths return `File[]` so downstream code (multipart uploads,
- * FormData construction) is identical regardless of platform.
+ * otherwise. Folder imports also carry a relative path so exports can rebuild
+ * chapter subdirectories.
  *
  * Directory picking is supported on web via `directoryOpen`, which uses the
  * File System Access API in Chromium and falls back to `<input webkitdirectory>`
@@ -24,8 +24,18 @@ const IMAGE_RE = /\.(png|jpe?g|webp)$/i
  * sandbox.
  */
 export type ImagePickerResult =
-  | { kind: 'paths'; paths: string[] }
-  | { kind: 'files'; files: File[] }
+  | { kind: 'paths'; entries: ImagePathEntry[] }
+  | { kind: 'files'; entries: ImageFileEntry[] }
+
+export type ImagePathEntry = {
+  path: string
+  relativePath?: string
+}
+
+export type ImageFileEntry = {
+  file: File
+  relativePath?: string
+}
 
 /** Pick one or more image files. Empty result = user cancelled. */
 export async function openImageFiles(): Promise<ImagePickerResult> {
@@ -35,9 +45,9 @@ export async function openImageFiles(): Promise<ImagePickerResult> {
       multiple: true,
       filters: [{ name: 'Images', extensions: [...IMAGE_EXTENSIONS] }],
     })
-    if (!picked) return { kind: 'paths', paths: [] }
+    if (!picked) return { kind: 'paths', entries: [] }
     const paths = Array.isArray(picked) ? picked : [picked]
-    return { kind: 'paths', paths }
+    return { kind: 'paths', entries: paths.map((path) => ({ path })) }
   }
 
   const { fileOpen } = await import('browser-fs-access')
@@ -48,38 +58,42 @@ export async function openImageFiles(): Promise<ImagePickerResult> {
       extensions: IMAGE_EXTENSIONS.map((e) => `.${e}`),
       description: 'Images',
     })
-    return { kind: 'files', files: Array.isArray(result) ? result : [result] }
+    const files = Array.isArray(result) ? result : [result]
+    return { kind: 'files', entries: files.map((file) => ({ file })) }
   } catch (e) {
-    if (isAbort(e)) return { kind: 'files', files: [] }
+    if (isAbort(e)) return { kind: 'files', entries: [] }
     throw e
   }
 }
 
-/** Pick a folder; return every image file inside it (non-recursive). */
+/** Pick a folder; return every image file inside it recursively. */
 export async function openImageFolder(): Promise<ImagePickerResult> {
   if (isTauri()) {
     const { open } = await import('@tauri-apps/plugin-dialog')
     const folder = await open({ directory: true, multiple: false })
-    if (!folder || typeof folder !== 'string') return { kind: 'paths', paths: [] }
+    if (!folder || typeof folder !== 'string') return { kind: 'paths', entries: [] }
     const { readDir } = await import('@tauri-apps/plugin-fs')
-    const entries = await readDir(folder)
-    const paths = entries
-      .filter((e) => e.isFile && e.name && IMAGE_RE.test(e.name))
-      .map((e) => `${folder}/${e.name}`)
-      .sort()
-    return { kind: 'paths', paths }
+    const entries = await collectTauriImageEntries(folder, folder, readDir)
+    entries.sort(comparePickerEntries)
+    return { kind: 'paths', entries }
   }
 
   const { directoryOpen } = await import('browser-fs-access')
   try {
-    const results = await directoryOpen({ recursive: false })
+    const results = await directoryOpen({ recursive: true })
     const arr = Array.isArray(results) ? results : [results]
-    return {
-      kind: 'files',
-      files: arr.filter((f): f is File => !!f && IMAGE_RE.test(f.name)),
-    }
+    const entries = arr
+      .filter((f): f is File => !!f && IMAGE_RE.test(f.name))
+      .map((file) => ({
+        file,
+        relativePath: stripPickedRoot(
+          (file as File & { webkitRelativePath?: string }).webkitRelativePath,
+        ),
+      }))
+    entries.sort(comparePickerEntries)
+    return { kind: 'files', entries }
   } catch (e) {
-    if (isAbort(e)) return { kind: 'files', files: [] }
+    if (isAbort(e)) return { kind: 'files', entries: [] }
     throw e
   }
 }
@@ -125,6 +139,64 @@ async function readTauriFiles(paths: string[]): Promise<File[]> {
     out.push(new File([bytes as unknown as BlobPart], name, { type: mimeFromName(name) }))
   }
   return out
+}
+
+async function collectTauriImageEntries(
+  root: string,
+  dir: string,
+  readDir: (
+    path: string,
+  ) => Promise<Array<{ name: string; isFile: boolean; isDirectory: boolean; isSymlink: boolean }>>,
+): Promise<ImagePathEntry[]> {
+  const entries = await readDir(dir)
+  const out: ImagePathEntry[] = []
+  for (const entry of entries) {
+    if (!entry.name || entry.isSymlink) continue
+    const fullPath = joinPath(dir, entry.name)
+    if (entry.isDirectory) {
+      out.push(...(await collectTauriImageEntries(root, fullPath, readDir)))
+      continue
+    }
+    if (!entry.isFile || !IMAGE_RE.test(entry.name)) continue
+    out.push({
+      path: fullPath,
+      relativePath: relativeFromRoot(root, fullPath),
+    })
+  }
+  return out
+}
+
+function joinPath(dir: string, name: string): string {
+  return `${dir.replace(/[\\/]+$/g, '')}/${name}`
+}
+
+function relativeFromRoot(root: string, path: string): string | undefined {
+  const normalizedRoot = root.replace(/\\/g, '/').replace(/\/+$/g, '')
+  const normalizedPath = path.replace(/\\/g, '/')
+  const prefix = `${normalizedRoot}/`
+  if (!normalizedPath.startsWith(prefix)) return undefined
+  return normalizedPath.slice(prefix.length)
+}
+
+function stripPickedRoot(path: string | undefined): string | undefined {
+  if (!path) return undefined
+  const normalized = path.replace(/\\/g, '/')
+  const slash = normalized.indexOf('/')
+  return slash >= 0 ? normalized.slice(slash + 1) : normalized
+}
+
+const naturalPathCollator = new Intl.Collator(undefined, {
+  numeric: true,
+  sensitivity: 'base',
+})
+
+function comparePickerEntries(
+  a: ImagePathEntry | ImageFileEntry,
+  b: ImagePathEntry | ImageFileEntry,
+): number {
+  const aPath = a.relativePath ?? ('path' in a ? a.path : a.file.name)
+  const bPath = b.relativePath ?? ('path' in b ? b.path : b.file.name)
+  return naturalPathCollator.compare(aPath, bPath)
 }
 
 function mimeFromName(name: string): string {

@@ -16,6 +16,7 @@ import {
   updateConfig,
   uploadKhrArchive,
   uploadPages,
+  uploadPagesByPaths,
 } from '@/lib/io/scene'
 import { ops } from '@/lib/ops'
 import { queryClient } from '@/lib/queryClient'
@@ -155,6 +156,22 @@ describe('pages + archive uploads', () => {
     expect(isInvalidated(getGetSceneJsonQueryKey())).toBe(true)
   })
 
+  it('uploadPages includes relativePath metadata when provided', async () => {
+    const seenRelativePaths: string[] = []
+    server.use(
+      http.post('/api/v1/pages', async ({ request }) => {
+        const form = await request.formData()
+        for (const value of form.getAll('relativePath')) seenRelativePaths.push(String(value))
+        return HttpResponse.json({ pages: ['page-1'] })
+      }),
+    )
+
+    const file = new File([new Uint8Array([1])], '001.png', { type: 'image/png' })
+    await uploadPages([{ file, relativePath: 'Chapter 01/001.png' }], false)
+
+    expect(seenRelativePaths).toEqual(['Chapter 01/001.png'])
+  })
+
   it('uploadKhrArchive sends bytes with application/zip', async () => {
     const seen: { contentType: string | null } = { contentType: null }
     server.use(
@@ -176,6 +193,32 @@ describe('pages + archive uploads', () => {
 
     expect(seen.contentType).toBe('application/zip')
     expect(summary.id).toBe('imported')
+    expect(isInvalidated(getGetSceneJsonQueryKey())).toBe(true)
+  })
+
+  it('uploadPagesByPaths includes relative paths when provided', async () => {
+    let seen: { paths?: unknown; relativePaths?: unknown; replace?: unknown } = {}
+    server.use(
+      http.post('/api/v1/pages/from-paths', async ({ request }) => {
+        seen = (await request.json()) as typeof seen
+        return HttpResponse.json({ pages: ['p1', 'p2'] })
+      }),
+    )
+
+    const created = await uploadPagesByPaths(
+      [
+        { path: '/root/ch1/001.png', relativePath: 'ch1/001.png' },
+        { path: '/root/ch1/002.png', relativePath: 'ch1/002.png' },
+      ],
+      true,
+    )
+
+    expect(created).toEqual(['p1', 'p2'])
+    expect(seen).toEqual({
+      paths: ['/root/ch1/001.png', '/root/ch1/002.png'],
+      relativePaths: ['ch1/001.png', 'ch1/002.png'],
+      replace: true,
+    })
     expect(isInvalidated(getGetSceneJsonQueryKey())).toBe(true)
   })
 })

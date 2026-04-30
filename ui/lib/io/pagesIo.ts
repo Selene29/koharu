@@ -10,9 +10,9 @@ import { useActivityLogStore } from '@/lib/stores/activityLogStore'
 import { useEditorUiStore } from '@/lib/stores/editorUiStore'
 
 /**
- * Platform-neutral image import. `openImageFiles` / `openImageFolder` return
- * `File[]` on both Tauri and the web; the upload + scene invalidation lives
- * in `lib/io/scene.ts` on top of the orval-generated `createPages` mutation.
+ * Platform-neutral image import. Tauri passes disk paths to the backend;
+ * web passes File objects. Folder imports include relative paths so export
+ * can rebuild chapter directories.
  */
 export async function importPages(
   mode: 'replace' | 'append',
@@ -21,12 +21,12 @@ export async function importPages(
   const picked = source === 'folder' ? await openImageFolder() : await openImageFiles()
   const replace = mode === 'replace'
   if (picked.kind === 'paths') {
-    if (picked.paths.length === 0) return
-    await uploadPagesByPaths(picked.paths, replace)
+    if (picked.entries.length === 0) return
+    await uploadPagesByPaths(picked.entries, replace)
     return
   }
-  if (picked.files.length === 0) return
-  await uploadPages(picked.files, replace)
+  if (picked.entries.length === 0) return
+  await uploadPages(picked.entries, replace)
 }
 
 /**

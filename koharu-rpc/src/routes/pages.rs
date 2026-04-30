@@ -8,14 +8,15 @@
 //! All three do the same server-side dance: read bytes → `blobs.put_bytes`
 //! → emit an `Op` on the session history.
 
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
 use axum::Json;
 use axum::body::Bytes;
 use axum::extract::{Multipart, Path, Query, State};
-use image::GenericImageView;
 use axum::http::StatusCode;
+use image::GenericImageView;
 use koharu_app::pipeline::{self, EngineCtx, PipelineRunOptions};
 use koharu_core::{
     BlobRef, ImageData, ImageRole, MaskRole, Node, NodeDataPatch, NodeId, NodeKind, Op, Page,
@@ -73,8 +74,9 @@ async fn create_pages(
         .current_session()
         .ok_or_else(|| ApiError::bad_request("no project open"))?;
 
-    // Collect (filename, bytes) pairs first so we can sort naturally.
+    // Collect (relative page path, bytes) pairs first so we can sort naturally.
     let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut relative_paths: VecDeque<String> = VecDeque::new();
     let mut replace = false;
     while let Some(field) = multipart
         .next_field()
@@ -90,15 +92,27 @@ async fn create_pages(
             replace = text == "true" || text == "1";
             continue;
         }
+        if name == "relativePath" {
+            let text = field
+                .text()
+                .await
+                .map_err(|e| ApiError::bad_request(format!("{e}")))?;
+            relative_paths.push_back(text);
+            continue;
+        }
         let filename = field
             .file_name()
             .map(|s| s.to_string())
             .unwrap_or_else(|| format!("page-{}.bin", files.len() + 1));
+        let page_name = relative_paths
+            .pop_front()
+            .map(|relative_path| normalize_page_relative_path(&relative_path, &filename))
+            .unwrap_or_else(|| normalize_page_relative_path(&filename, &filename));
         let bytes = field
             .bytes()
             .await
             .map_err(|e| ApiError::bad_request(format!("read file: {e}")))?;
-        files.push((filename, bytes.to_vec()));
+        files.push((page_name, bytes.to_vec()));
     }
 
     files.sort_by(|a, b| natord::compare(&a.0, &b.0));
@@ -207,6 +221,8 @@ async fn create_pages(
 pub struct CreatePagesFromPathsRequest {
     pub paths: Vec<String>,
     #[serde(default)]
+    pub relative_paths: Option<Vec<Option<String>>>,
+    #[serde(default)]
     pub replace: bool,
 }
 
@@ -230,21 +246,41 @@ async fn create_pages_from_paths(
         .current_session()
         .ok_or_else(|| ApiError::bad_request("no project open"))?;
 
-    // Natural-order sort by filename component so `page-2.png` < `page-10.png`.
-    let mut paths = req.paths;
-    paths.sort_by(|a, b| {
-        let af = std::path::Path::new(a)
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or(a);
-        let bf = std::path::Path::new(b)
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or(b);
-        natord::compare(af, bf)
-    });
+    let CreatePagesFromPathsRequest {
+        paths,
+        relative_paths,
+        replace,
+    } = req;
 
-    let starting_index = if req.replace {
+    if let Some(relative_paths) = relative_paths.as_ref()
+        && relative_paths.len() != paths.len()
+    {
+        return Err(ApiError::bad_request(
+            "relativePaths length must match paths length",
+        ));
+    }
+
+    // Natural-order sort by relative path so chapter folders stay grouped.
+    let mut files: Vec<(String, String)> = paths
+        .into_iter()
+        .enumerate()
+        .map(|(i, path)| {
+            let fallback = std::path::Path::new(&path)
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("page.bin");
+            let page_name = relative_paths
+                .as_ref()
+                .and_then(|paths| paths.get(i))
+                .and_then(|path| path.as_deref())
+                .map(|relative_path| normalize_page_relative_path(relative_path, fallback))
+                .unwrap_or_else(|| normalize_page_relative_path(fallback, fallback));
+            (path, page_name)
+        })
+        .collect();
+    files.sort_by(|a, b| natord::compare(&a.1, &b.1));
+
+    let starting_index = if replace {
         let scene = session.scene.read();
         let remove_ops: Vec<Op> = scene
             .pages
@@ -271,22 +307,19 @@ async fn create_pages_from_paths(
 
     let blobs = session.blobs.clone();
     let decoded: Vec<(String, u32, u32, BlobRef)> = tokio::task::spawn_blocking(move || {
-        paths
+        files
             .into_par_iter()
-            .map(|path| -> ApiResult<(String, u32, u32, BlobRef)> {
-                let filename = std::path::Path::new(&path)
-                    .file_name()
-                    .and_then(|s| s.to_str())
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| "page.bin".to_string());
-                let bytes = std::fs::read(&path)
-                    .map_err(|e| ApiError::bad_request(format!("read `{filename}`: {e}")))?;
-                let img = image::load_from_memory(&bytes)
-                    .map_err(|e| ApiError::bad_request(format!("decode `{filename}`: {e}")))?;
-                let (w, h) = img.dimensions();
-                let blob = blobs.put_bytes(&bytes).map_err(ApiError::internal)?;
-                Ok((filename, w, h, blob))
-            })
+            .map(
+                |(path, page_name)| -> ApiResult<(String, u32, u32, BlobRef)> {
+                    let bytes = std::fs::read(&path)
+                        .map_err(|e| ApiError::bad_request(format!("read `{page_name}`: {e}")))?;
+                    let img = image::load_from_memory(&bytes)
+                        .map_err(|e| ApiError::bad_request(format!("decode `{page_name}`: {e}")))?;
+                    let (w, h) = img.dimensions();
+                    let blob = blobs.put_bytes(&bytes).map_err(ApiError::internal)?;
+                    Ok((page_name, w, h, blob))
+                },
+            )
             .collect::<ApiResult<Vec<_>>>()
     })
     .await
@@ -457,9 +490,73 @@ fn center_on_page(page: Option<&koharu_core::Page>, iw: u32, ih: u32) -> (f32, f
     (x.max(0.0), y.max(0.0))
 }
 
+pub(crate) fn normalize_page_relative_path(raw: &str, fallback: &str) -> String {
+    let normalized = raw.replace('\\', "/");
+    let mut parts: Vec<String> = Vec::new();
+    for part in normalized.split('/') {
+        let trimmed = part.trim();
+        if trimmed.is_empty() || trimmed == "." || trimmed == ".." || trimmed.ends_with(':') {
+            continue;
+        }
+        parts.push(sanitize_path_component(trimmed));
+    }
+
+    if !parts.is_empty() {
+        return parts.join("/");
+    }
+
+    let fallback_name = std::path::Path::new(fallback)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("page.bin");
+    let fallback = sanitize_path_component(fallback_name.trim());
+    if fallback.is_empty() {
+        "page.bin".to_string()
+    } else {
+        fallback
+    }
+}
+
+fn sanitize_path_component(component: &str) -> String {
+    component
+        .chars()
+        .map(|c| match c {
+            '<' | '>' | ':' | '"' | '|' | '?' | '*' => '_',
+            c if c.is_control() => '_',
+            c => c,
+        })
+        .collect()
+}
+
 #[allow(dead_code)]
 fn scene_contains_page(scene: &Scene, id: PageId) -> bool {
     scene.pages.contains_key(&id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_page_relative_path;
+
+    #[test]
+    fn normalize_page_relative_path_removes_unsafe_components() {
+        assert_eq!(
+            normalize_page_relative_path(r"C:\root\..\Chapter 1\001?.png", "fallback.png"),
+            "root/Chapter 1/001_.png"
+        );
+        assert_eq!(
+            normalize_page_relative_path("../Chapter 2/./002.png", "fallback.png"),
+            "Chapter 2/002.png"
+        );
+    }
+
+    #[test]
+    fn normalize_page_relative_path_falls_back_to_basename() {
+        assert_eq!(
+            normalize_page_relative_path("../..", "C:/pages/001.png"),
+            "001.png"
+        );
+        assert_eq!(normalize_page_relative_path("", ""), "page.bin");
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -45,8 +45,8 @@ function isInvalidated(key: readonly unknown[]): boolean {
 
 describe('importPages', () => {
   it('no-ops when the user cancels the picker', async () => {
-    asMock(openImageFiles).mockResolvedValue({ kind: 'files', files: [] })
-    asMock(openImageFolder).mockResolvedValue({ kind: 'files', files: [] })
+    asMock(openImageFiles).mockResolvedValue({ kind: 'files', entries: [] })
+    asMock(openImageFolder).mockResolvedValue({ kind: 'files', entries: [] })
 
     let uploadCalls = 0
     server.use(
@@ -65,8 +65,8 @@ describe('importPages', () => {
 
   it('routes "files" to openImageFiles and "folder" to openImageFolder', async () => {
     const pngFile = new File([new Uint8Array([0])], 'a.png', { type: 'image/png' })
-    asMock(openImageFiles).mockResolvedValue({ kind: 'files', files: [pngFile] })
-    asMock(openImageFolder).mockResolvedValue({ kind: 'files', files: [pngFile] })
+    asMock(openImageFiles).mockResolvedValue({ kind: 'files', entries: [{ file: pngFile }] })
+    asMock(openImageFolder).mockResolvedValue({ kind: 'files', entries: [{ file: pngFile }] })
 
     server.use(http.post('/api/v1/pages', () => HttpResponse.json({ pages: ['p'] })))
 
@@ -84,7 +84,7 @@ describe('importPages', () => {
 
   it('sends the replace flag based on mode', async () => {
     const pngFile = new File([new Uint8Array([0])], 'a.png', { type: 'image/png' })
-    asMock(openImageFiles).mockResolvedValue({ kind: 'files', files: [pngFile] })
+    asMock(openImageFiles).mockResolvedValue({ kind: 'files', entries: [{ file: pngFile }] })
 
     const seen: string[] = []
     server.use(
@@ -103,7 +103,7 @@ describe('importPages', () => {
   it('takes the path-based fast path when picker returns paths', async () => {
     asMock(openImageFiles).mockResolvedValue({
       kind: 'paths',
-      paths: ['/images/a.png', '/images/b.png'],
+      entries: [{ path: '/images/a.png' }, { path: '/images/b.png' }],
     })
 
     let seen: { paths?: unknown; replace?: unknown } = {}
@@ -119,6 +119,30 @@ describe('importPages', () => {
     expect(seen.paths).toEqual(['/images/a.png', '/images/b.png'])
     expect(seen.replace).toBe(true)
     expect(isInvalidated(getGetSceneJsonQueryKey())).toBe(true)
+  })
+
+  it('sends relative paths for structured folder imports', async () => {
+    asMock(openImageFolder).mockResolvedValue({
+      kind: 'paths',
+      entries: [
+        { path: '/images/ch1/001.png', relativePath: 'ch1/001.png' },
+        { path: '/images/ch2/001.png', relativePath: 'ch2/001.png' },
+      ],
+    })
+
+    let seen: { paths?: unknown; relativePaths?: unknown; replace?: unknown } = {}
+    server.use(
+      http.post('/api/v1/pages/from-paths', async ({ request }) => {
+        seen = (await request.json()) as typeof seen
+        return HttpResponse.json({ pages: ['p1', 'p2'] })
+      }),
+    )
+
+    await importPages('append', 'folder')
+
+    expect(seen.paths).toEqual(['/images/ch1/001.png', '/images/ch2/001.png'])
+    expect(seen.relativePaths).toEqual(['ch1/001.png', 'ch2/001.png'])
+    expect(seen.replace).toBe(false)
   })
 })
 
