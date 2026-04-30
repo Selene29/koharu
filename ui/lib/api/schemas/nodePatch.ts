@@ -3,12 +3,12 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { NodeDataPatch } from './nodeDataPatch'
-import type { Transform } from './transform'
+import type { NodeDataPatch } from './nodeDataPatch';
+import type { Transform } from './transform';
 
 export interface NodePatch {
-  data?: null | NodeDataPatch
-  transform?: null | Transform
+  data?: null | NodeDataPatch;
+  transform?: null | Transform;
   /** @nullable */
-  visible?: boolean | null
+  visible?: boolean | null;
 }

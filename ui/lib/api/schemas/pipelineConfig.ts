@@ -3,6 +3,7 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
+import type { PipelineParallelismConfig } from './pipelineParallelismConfig';
 
 /**
  * Engine selection for each pipeline stage.
@@ -10,12 +11,13 @@ Values are engine IDs (e.g. "pp-doclayout-v3", "comic-text-detector").
 Empty string means use default.
  */
 export interface PipelineConfig {
-  bubble_segmenter?: string
-  detector?: string
-  font_detector?: string
-  inpainter?: string
-  ocr?: string
-  renderer?: string
-  segmenter?: string
-  translator?: string
+  bubble_segmenter?: string;
+  detector?: string;
+  font_detector?: string;
+  inpainter?: string;
+  ocr?: string;
+  parallelism?: PipelineParallelismConfig;
+  renderer?: string;
+  segmenter?: string;
+  translator?: string;
 }

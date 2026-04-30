@@ -5,8 +5,8 @@
  */
 
 export interface GoogleFontVariant {
-  filename: string
-  style: string
+  filename: string;
+  style: string;
   /** @minimum 0 */
-  weight: number
+  weight: number;
 }

@@ -6,11 +6,11 @@
 
 export interface ProviderPatch {
   /**
-   * `"[REDACTED]"` → keep existing keyring secret; empty → clear; otherwise save.
-   * @nullable
-   */
-  apiKey?: string | null
+     * `"[REDACTED]"` → keep existing keyring secret; empty → clear; otherwise save.
+     * @nullable
+     */
+  apiKey?: string | null;
   /** @nullable */
-  baseUrl?: string | null
-  id: string
+  baseUrl?: string | null;
+  id: string;
 }

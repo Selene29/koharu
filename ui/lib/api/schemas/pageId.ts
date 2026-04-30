@@ -4,4 +4,4 @@
  * OpenAPI spec version: 0.0.1
  */
 
-export type PageId = string
+export type PageId = string;

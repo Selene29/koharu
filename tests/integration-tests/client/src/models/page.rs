@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Page {
+    /// Whether this page is considered fully processed / ready for export. Auto-set by the pipeline when a page finishes all steps (or has no text to process). Can also be toggled manually by the user.
+    #[serde(rename = "completed", skip_serializing_if = "Option::is_none")]
+    pub completed: Option<bool>,
     #[serde(rename = "height")]
     pub height: u32,
     #[serde(rename = "id")]
@@ -35,6 +38,7 @@ impl Page {
         width: u32,
     ) -> Page {
         Page {
+            completed: None,
             height,
             id,
             name,

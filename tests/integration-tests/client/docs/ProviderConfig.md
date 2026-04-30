@@ -4,7 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**api_key** | Option<**String**> | Populated from the keyring on `load()`, never written to config.toml. Serializes as `\"[REDACTED]\"` in API responses. Populated from keyring on `load()`. Serializes as `\"[REDACTED]\"`. | [optional]
+**api_key** | Option<**String**> | Populated from credential storage on `load()`, never written to config.toml. Serializes as `\"[REDACTED]\"` in API responses. | [optional]
 **base_url** | Option<**String**> |  | [optional]
 **id** | **String** |  | 
 

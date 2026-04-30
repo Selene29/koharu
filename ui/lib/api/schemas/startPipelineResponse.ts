@@ -5,5 +5,5 @@
  */
 
 export interface StartPipelineResponse {
-  operationId: string
+  operationId: string;
 }

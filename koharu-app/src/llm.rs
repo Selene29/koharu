@@ -444,10 +444,8 @@ pub async fn delete_local_model(
     runtime: &RuntimeManager,
     model_id: &str,
 ) -> Result<()> {
-    let model: ModelId =
-        std::str::FromStr::from_str(model_id).map_err(|_| {
-            anyhow::anyhow!("unknown local model id: {model_id}")
-        })?;
+    let model: ModelId = std::str::FromStr::from_str(model_id)
+        .map_err(|_| anyhow::anyhow!("unknown local model id: {model_id}"))?;
     let target = local_target(model);
 
     // If this model is currently loaded, offload it first.

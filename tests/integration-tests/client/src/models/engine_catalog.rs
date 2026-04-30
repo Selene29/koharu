@@ -13,6 +13,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct EngineCatalog {
+    #[serde(rename = "bubbleSegmenters")]
+    pub bubble_segmenters: Vec<models::EngineCatalogEntry>,
     #[serde(rename = "detectors")]
     pub detectors: Vec<models::EngineCatalogEntry>,
     #[serde(rename = "fontDetectors")]
@@ -31,6 +33,7 @@ pub struct EngineCatalog {
 
 impl EngineCatalog {
     pub fn new(
+        bubble_segmenters: Vec<models::EngineCatalogEntry>,
         detectors: Vec<models::EngineCatalogEntry>,
         font_detectors: Vec<models::EngineCatalogEntry>,
         inpainters: Vec<models::EngineCatalogEntry>,
@@ -40,6 +43,7 @@ impl EngineCatalog {
         translators: Vec<models::EngineCatalogEntry>,
     ) -> EngineCatalog {
         EngineCatalog {
+            bubble_segmenters,
             detectors,
             font_detectors,
             inpainters,

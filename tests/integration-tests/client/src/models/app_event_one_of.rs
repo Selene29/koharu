@@ -13,32 +13,28 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AppEventOneOf {
-    #[serde(rename = "epoch")]
-    pub epoch: u64,
     #[serde(rename = "event")]
     pub event: Event,
-    #[serde(rename = "op")]
-    pub op: Box<models::Op>,
+    #[serde(rename = "id")]
+    pub id: String,
+    #[serde(rename = "kind")]
+    pub kind: String,
 }
 
 impl AppEventOneOf {
-    pub fn new(epoch: u64, event: Event, op: models::Op) -> AppEventOneOf {
-        AppEventOneOf {
-            epoch,
-            event,
-            op: Box::new(op),
-        }
+    pub fn new(event: Event, id: String, kind: String) -> AppEventOneOf {
+        AppEventOneOf { event, id, kind }
     }
 }
 ///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Event {
-    #[serde(rename = "opApplied")]
-    OpApplied,
+    #[serde(rename = "jobStarted")]
+    JobStarted,
 }
 
 impl Default for Event {
     fn default() -> Event {
-        Self::OpApplied
+        Self::JobStarted
     }
 }

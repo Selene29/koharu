@@ -33,7 +33,7 @@ pub struct ProjectMetaPatch {
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub updated_at: Option<Option<String>>,
+    pub updated_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
 }
 
 impl ProjectMetaPatch {

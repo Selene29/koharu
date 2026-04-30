@@ -3,11 +3,11 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { CodexDeviceLoginStatus } from './codexDeviceLoginStatus'
+import type { CodexDeviceLoginStatus } from './codexDeviceLoginStatus';
 
 export interface CodexAuthStatus {
   /** @nullable */
-  accountId?: string | null
-  login?: null | CodexDeviceLoginStatus
-  signedIn: boolean
+  accountId?: string | null;
+  login?: null | CodexDeviceLoginStatus;
+  signedIn: boolean;
 }

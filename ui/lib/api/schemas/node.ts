@@ -3,13 +3,13 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { NodeId } from './nodeId'
-import type { NodeKind } from './nodeKind'
-import type { Transform } from './transform'
+import type { NodeId } from './nodeId';
+import type { NodeKind } from './nodeKind';
+import type { Transform } from './transform';
 
 export interface Node {
-  id: NodeId
-  kind: NodeKind
-  transform?: Transform
-  visible: boolean
+  id: NodeId;
+  kind: NodeKind;
+  transform?: Transform;
+  visible: boolean;
 }

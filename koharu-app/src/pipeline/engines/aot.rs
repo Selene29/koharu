@@ -15,7 +15,7 @@ use koharu_ml::inpainting::expand_mask_for_inpainting;
 use koharu_ml::types::TextRegion;
 
 use crate::pipeline::artifacts::Artifact;
-use crate::pipeline::engine::{Engine, EngineCtx, EngineInfo};
+use crate::pipeline::engine::{Engine, EngineCtx, EngineInfo, EngineResource};
 use crate::pipeline::engines::support::{
     find_image_node, find_mask_node, image_dimensions, load_source_image, text_node_to_region,
     text_nodes, upsert_image_blob,
@@ -95,6 +95,7 @@ inventory::submit! {
         name: "AOT Inpainting",
         needs: &[Artifact::SegmentMask, Artifact::BubbleMask],
         produces: &[Artifact::Inpainted],
+        resource: EngineResource::Model,
         load: |runtime, cpu| Box::pin(async move {
             let m = AotInpainting::load(runtime, cpu).await?;
             Ok(Box::new(Model(m)) as Box<dyn Engine>)

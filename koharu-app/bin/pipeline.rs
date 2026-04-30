@@ -230,6 +230,7 @@ async fn run() -> Result<()> {
             reading_order: None,
             region: None,
         },
+        parallelism: app.config.load().pipeline.parallelism.clone(),
     };
 
     // When translate is skipped, copy OCR text into the translation slot so

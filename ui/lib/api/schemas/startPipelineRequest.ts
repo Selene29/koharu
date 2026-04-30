@@ -3,30 +3,30 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { NodeId } from './nodeId'
-import type { PageId } from './pageId'
-import type { ReadingOrder } from './readingOrder'
-import type { Region } from './region'
+import type { NodeId } from './nodeId';
+import type { PageId } from './pageId';
+import type { ReadingOrder } from './readingOrder';
+import type { Region } from './region';
 
 export interface StartPipelineRequest {
   /** @nullable */
-  defaultFont?: string | null
+  defaultFont?: string | null;
   /**
-   * `None` → whole project, `Some(pages)` → just those pages.
-   * @nullable
-   */
-  pages?: PageId[] | null
-  readingOrder?: ReadingOrder
-  region?: null | Region
+     * `None` → whole project, `Some(pages)` → just those pages.
+     * @nullable
+     */
+  pages?: PageId[] | null;
+  readingOrder?: null | ReadingOrder;
+  region?: null | Region;
   /** Engine ids (`inventory::submit!` ids) to run in order. */
-  steps: string[]
+  steps: string[];
   /** @nullable */
-  systemPrompt?: string | null
+  systemPrompt?: string | null;
   /** @nullable */
-  targetLanguage?: string | null
+  targetLanguage?: string | null;
   /**
-   * Optional text-node ids for engines that can operate on individual blocks.
-   * @nullable
-   */
-  textNodeIds?: NodeId[] | null
+     * Optional text-node ids for engines that can operate on individual blocks.
+     * @nullable
+     */
+  textNodeIds?: NodeId[] | null;
 }

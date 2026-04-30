@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use koharu_core::{NodeDataPatch, NodeId, NodePatch, Op, PageId, Scene, TextData, TextDataPatch};
 
 use crate::pipeline::artifacts::Artifact;
-use crate::pipeline::engine::{Engine, EngineCtx, EngineInfo};
+use crate::pipeline::engine::{Engine, EngineCtx, EngineInfo, EngineResource};
 use crate::pipeline::engines::support::text_nodes;
 
 pub struct Model;
@@ -84,6 +84,7 @@ inventory::submit! {
         name: "LLM",
         needs: &[Artifact::OcrText],
         produces: &[Artifact::Translations],
+        resource: EngineResource::Llm,
         load: |_runtime, _cpu| Box::pin(async move {
             Ok(Box::new(Model) as Box<dyn Engine>)
         }),

@@ -50,6 +50,7 @@ async fn config_patch_merges_and_persists() -> anyhow::Result<()> {
     let app = TestApp::spawn().await?;
 
     let patch = models::ConfigPatch {
+        data: None,
         http: Some(Some(Box::new(models::HttpConfigPatch {
             connect_timeout: Some(Some(42)),
             read_timeout: None,

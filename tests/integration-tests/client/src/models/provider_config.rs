@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProviderConfig {
-    /// Populated from the keyring on `load()`, never written to config.toml. Serializes as `\"[REDACTED]\"` in API responses. Populated from keyring on `load()`. Serializes as `\"[REDACTED]\"`.
+    /// Populated from credential storage on `load()`, never written to config.toml. Serializes as `\"[REDACTED]\"` in API responses.
     #[serde(
         rename = "api_key",
         default,

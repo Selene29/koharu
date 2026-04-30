@@ -9,7 +9,7 @@ use koharu_ml::flux2_klein::{Flux2InpaintOptions, Flux2Klein};
 use koharu_ml::inpainting::mask::expand_mask_to_bubble_region_for_inpainting;
 
 use crate::pipeline::artifacts::Artifact;
-use crate::pipeline::engine::{Engine, EngineCtx, EngineInfo};
+use crate::pipeline::engine::{Engine, EngineCtx, EngineInfo, EngineResource};
 use crate::pipeline::engines::support::{
     find_image_node, find_mask_node, image_dimensions, load_source_image, text_node_to_region,
     text_nodes, upsert_image_blob,
@@ -95,6 +95,7 @@ inventory::submit! {
         name: "Flux.2 Klein",
         needs: &[Artifact::SegmentMask, Artifact::BubbleMask],
         produces: &[Artifact::Inpainted],
+        resource: EngineResource::Model,
         load: |runtime, _cpu| Box::pin(async move {
             let m = Flux2Klein::load(runtime).await?;
             Ok(Box::new(Model(m)) as Box<dyn Engine>)

@@ -8,7 +8,7 @@ use koharu_ml::mit48px_ocr::Mit48pxOcr;
 use koharu_ml::types::TextRegion;
 
 use crate::pipeline::artifacts::Artifact;
-use crate::pipeline::engine::{Engine, EngineCtx, EngineInfo};
+use crate::pipeline::engine::{Engine, EngineCtx, EngineInfo, EngineResource};
 use crate::pipeline::engines::support::{load_source_image, text_node_to_region, text_nodes};
 
 pub struct Model(Mit48pxOcr);
@@ -55,6 +55,7 @@ inventory::submit! {
         name: "MIT 48px OCR",
         needs: &[Artifact::TextBoxes],
         produces: &[Artifact::OcrText],
+        resource: EngineResource::Model,
         load: |runtime, cpu| Box::pin(async move {
             let m = Mit48pxOcr::load(runtime, cpu).await?;
             Ok(Box::new(Model(m)) as Box<dyn Engine>)

@@ -7,5 +7,5 @@
 export interface OpenProjectRequest {
   /** `.khrproj/` directory basename (no extension). Must exist under the
   managed projects directory. */
-  id: string
+  id: string;
 }

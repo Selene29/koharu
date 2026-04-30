@@ -6,10 +6,10 @@
 
 export interface CodexDeviceLogin {
   /** @minimum 0 */
-  intervalSeconds: number
-  loginId: string
+  intervalSeconds: number;
+  loginId: string;
   /** @minimum 0 */
-  timeoutSeconds: number
-  userCode: string
-  verificationUrl: string
+  timeoutSeconds: number;
+  userCode: string;
+  verificationUrl: string;
 }

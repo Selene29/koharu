@@ -6,18 +6,18 @@
 
 export interface HttpConfigPatch {
   /**
-   * @minimum 0
-   * @nullable
-   */
-  connectTimeout?: number | null
+     * @minimum 0
+     * @nullable
+     */
+  connectTimeout?: number | null;
   /**
-   * @minimum 0
-   * @nullable
-   */
-  maxRetries?: number | null
+     * @minimum 0
+     * @nullable
+     */
+  maxRetries?: number | null;
   /**
-   * @minimum 0
-   * @nullable
-   */
-  readTimeout?: number | null
+     * @minimum 0
+     * @nullable
+     */
+  readTimeout?: number | null;
 }

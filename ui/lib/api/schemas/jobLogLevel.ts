@@ -7,13 +7,11 @@
 /**
  * Severity for diagnostic pipeline logs (`JobLogEvent`).
  */
-export type JobLogLevel = (typeof JobLogLevel)[keyof typeof JobLogLevel]
+export type JobLogLevel = typeof JobLogLevel[keyof typeof JobLogLevel];
 
-/**
- * Severity for diagnostic pipeline logs (`JobLogEvent`).
- */
+
 export const JobLogLevel = {
   info: 'info',
   warn: 'warn',
   error: 'error',
-} as const
+} as const;

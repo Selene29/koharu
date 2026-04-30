@@ -3,8 +3,8 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { DownloadProgress } from './downloadProgress'
+import type { DownloadProgress } from './downloadProgress';
 
 export interface ListDownloadsResponse {
-  downloads: DownloadProgress[]
+  downloads: DownloadProgress[];
 }

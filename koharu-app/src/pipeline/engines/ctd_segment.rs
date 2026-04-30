@@ -9,7 +9,7 @@ use koharu_ml::comic_text_detector::{ComicTextDetector, refine_segmentation_mask
 use koharu_ml::types::TextRegion;
 
 use crate::pipeline::artifacts::Artifact;
-use crate::pipeline::engine::{Engine, EngineCtx, EngineInfo};
+use crate::pipeline::engine::{Engine, EngineCtx, EngineInfo, EngineResource};
 use crate::pipeline::engines::support::{
     load_source_image, text_node_to_region, text_nodes, upsert_mask_blob,
 };
@@ -45,6 +45,7 @@ inventory::submit! {
         name: "Comic Text Detector (Segmentation)",
         needs: &[Artifact::TextBoxes],
         produces: &[Artifact::SegmentMask],
+        resource: EngineResource::Model,
         load: |runtime, cpu| Box::pin(async move {
             let m = ComicTextDetector::load_segmentation_only(runtime, cpu).await?;
             Ok(Box::new(Model(m)) as Box<dyn Engine>)

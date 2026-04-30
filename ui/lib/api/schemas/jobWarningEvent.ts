@@ -10,15 +10,15 @@ skipping the rest of the current page's steps and moving on to the next
 page; the UI accumulates these into a list during the job.
  */
 export interface JobWarningEvent {
-  jobId: string
-  message: string
+  jobId: string;
+  message: string;
   /**
-   * 0-based page index where the failure happened.
-   * @minimum 0
-   */
-  pageIndex: number
+     * 0-based page index where the failure happened.
+     * @minimum 0
+     */
+  pageIndex: number;
   /** Engine id (e.g. `"lama-manga"`) of the step that failed. */
-  stepId: string
+  stepId: string;
   /** @minimum 0 */
-  totalPages: number
+  totalPages: number;
 }

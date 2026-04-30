@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**completed** | Option<**bool**> |  | [optional]
 **height** | Option<**u32**> |  | [optional]
 **name** | Option<**String**> |  | [optional]
 **width** | Option<**u32**> |  | [optional]

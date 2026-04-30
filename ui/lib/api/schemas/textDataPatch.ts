@@ -3,11 +3,11 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { BlobRef } from './blobRef'
-import type { FontPrediction } from './fontPrediction'
-import type { TextDirection } from './textDirection'
-import type { TextStyle } from './textStyle'
-import type { Transform } from './transform'
+import type { BlobRef } from './blobRef';
+import type { FontPrediction } from './fontPrediction';
+import type { TextDirection } from './textDirection';
+import type { TextStyle } from './textStyle';
+import type { Transform } from './transform';
 
 /**
  * For fields where "set to None" is meaningful (e.g. clearing a translation),
@@ -15,27 +15,27 @@ the outer `Option` is "patch present", the inner is "value present".
  */
 export interface TextDataPatch {
   /** @nullable */
-  confidence?: number | null
+  confidence?: number | null;
   /** @nullable */
-  detectedFontSizePx?: number | null
+  detectedFontSizePx?: number | null;
   /** @nullable */
-  detector?: string | null
-  fontPrediction?: null | FontPrediction
+  detector?: string | null;
+  fontPrediction?: null | FontPrediction;
   /** @nullable */
-  linePolygons?: number[][][] | null
+  linePolygons?: number[][][] | null;
   /** @nullable */
-  lockLayoutBox?: boolean | null
-  renderedDirection?: null | TextDirection
+  lockLayoutBox?: boolean | null;
+  renderedDirection?: null | TextDirection;
   /** @nullable */
-  rotationDeg?: number | null
-  sourceDirection?: null | TextDirection
+  rotationDeg?: number | null;
+  sourceDirection?: null | TextDirection;
   /** @nullable */
-  sourceLang?: string | null
-  sprite?: null | BlobRef
-  spriteTransform?: null | Transform
-  style?: null | TextStyle
+  sourceLang?: string | null;
+  sprite?: null | BlobRef;
+  spriteTransform?: null | Transform;
+  style?: null | TextStyle;
   /** @nullable */
-  text?: string | null
+  text?: string | null;
   /** @nullable */
-  translation?: string | null
+  translation?: string | null;
 }

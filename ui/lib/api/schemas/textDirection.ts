@@ -7,9 +7,10 @@
 /**
  * Reading axis of a text block.
  */
-export type TextDirection = (typeof TextDirection)[keyof typeof TextDirection]
+export type TextDirection = typeof TextDirection[keyof typeof TextDirection];
+
 
 export const TextDirection = {
   horizontal: 'horizontal',
   vertical: 'vertical',
-} as const
+} as const;

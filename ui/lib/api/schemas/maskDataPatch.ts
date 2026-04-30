@@ -3,8 +3,8 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { BlobRef } from './blobRef'
+import type { BlobRef } from './blobRef';
 
 export interface MaskDataPatch {
-  blob?: null | BlobRef
+  blob?: null | BlobRef;
 }

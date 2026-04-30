@@ -13,24 +13,36 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AppEventOneOf10 {
+    #[serde(rename = "downloads")]
+    pub downloads: Vec<models::DownloadProgress>,
+    #[serde(rename = "jobs")]
+    pub jobs: Vec<models::JobSummary>,
     #[serde(rename = "event")]
     pub event: Event,
 }
 
 impl AppEventOneOf10 {
-    pub fn new(event: Event) -> AppEventOneOf10 {
-        AppEventOneOf10 { event }
+    pub fn new(
+        downloads: Vec<models::DownloadProgress>,
+        jobs: Vec<models::JobSummary>,
+        event: Event,
+    ) -> AppEventOneOf10 {
+        AppEventOneOf10 {
+            downloads,
+            jobs,
+            event,
+        }
     }
 }
 ///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Event {
-    #[serde(rename = "llmUnloaded")]
-    LlmUnloaded,
+    #[serde(rename = "snapshot")]
+    Snapshot,
 }
 
 impl Default for Event {
     fn default() -> Event {
-        Self::LlmUnloaded
+        Self::Snapshot
     }
 }

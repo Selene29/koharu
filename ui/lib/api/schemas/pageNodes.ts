@@ -3,10 +3,10 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { Node } from './node'
+import type { Node } from './node';
 
 /**
  * Stacking = insertion order. Bottom-first: `source` is typically first,
 `rendered` typically last.
  */
-export type PageNodes = { [key: string]: Node }
+export type PageNodes = {[key: string]: Node};

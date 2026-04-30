@@ -25,9 +25,6 @@ pub enum AppEvent {
     AppEventOneOf8(Box<models::AppEventOneOf8>),
     AppEventOneOf9(Box<models::AppEventOneOf9>),
     AppEventOneOf10(Box<models::AppEventOneOf10>),
-    AppEventOneOf11(Box<models::AppEventOneOf11>),
-    AppEventOneOf12(Box<models::AppEventOneOf12>),
-    AppEventOneOf13(Box<models::AppEventOneOf13>),
 }
 
 impl Default for AppEvent {
@@ -38,12 +35,12 @@ impl Default for AppEvent {
 ///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Event {
-    #[serde(rename = "error")]
-    Error,
+    #[serde(rename = "snapshot")]
+    Snapshot,
 }
 
 impl Default for Event {
     fn default() -> Event {
-        Self::Error
+        Self::Snapshot
     }
 }

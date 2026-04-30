@@ -3,50 +3,39 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { DownloadProgress } from './downloadProgress'
-import type { JobFinishedEvent } from './jobFinishedEvent'
-import type { JobLogEvent } from './jobLogEvent'
-import type { JobWarningEvent } from './jobWarningEvent'
-import type { LlmTarget } from './llmTarget'
-import type { PipelineProgress } from './pipelineProgress'
-import type { SnapshotEvent } from './snapshotEvent'
+import type { DownloadProgress } from './downloadProgress';
+import type { JobFinishedEvent } from './jobFinishedEvent';
+import type { JobLogEvent } from './jobLogEvent';
+import type { JobWarningEvent } from './jobWarningEvent';
+import type { LlmTarget } from './llmTarget';
+import type { PipelineProgress } from './pipelineProgress';
+import type { SnapshotEvent } from './snapshotEvent';
 
-export type AppEvent =
-  | {
-      event: 'jobStarted'
-      id: string
-      kind: string
-    }
-  | (PipelineProgress & {
-      event: 'jobProgress'
-    })
-  | (JobWarningEvent & {
-      event: 'jobWarning'
-    })
-  | (JobLogEvent & {
-      event: 'jobLog'
-    })
-  | (JobFinishedEvent & {
-      event: 'jobFinished'
-    })
-  | (DownloadProgress & {
-      event: 'downloadProgress'
-    })
-  | {
-      event: 'llmLoading'
-      target: LlmTarget
-    }
-  | {
-      event: 'llmLoaded'
-      target: LlmTarget
-    }
-  | {
-      event: 'llmFailed'
-      target?: null | LlmTarget
-    }
-  | {
-      event: 'llmUnloaded'
-    }
-  | (SnapshotEvent & {
-      event: 'snapshot'
-    })
+export type AppEvent = {
+  event: 'jobStarted';
+  id: string;
+  kind: string;
+} | PipelineProgress & {
+  event: 'jobProgress';
+} | JobWarningEvent & {
+  event: 'jobWarning';
+} | JobLogEvent & {
+  event: 'jobLog';
+} | JobFinishedEvent & {
+  event: 'jobFinished';
+} | DownloadProgress & {
+  event: 'downloadProgress';
+} | {
+  event: 'llmLoading';
+  target: LlmTarget;
+} | {
+  event: 'llmLoaded';
+  target: LlmTarget;
+} | {
+  event: 'llmFailed';
+  target?: null | LlmTarget;
+} | {
+  event: 'llmUnloaded';
+} | SnapshotEvent & {
+  event: 'snapshot';
+};

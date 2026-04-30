@@ -3,22 +3,22 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { BlobRef } from './blobRef'
+import type { BlobRef } from './blobRef';
 
 export interface ImageDataPatch {
-  blob?: null | BlobRef
+  blob?: null | BlobRef;
   /** @nullable */
-  name?: string | null
+  name?: string | null;
   /**
-   * @minimum 0
-   * @nullable
-   */
-  naturalHeight?: number | null
+     * @minimum 0
+     * @nullable
+     */
+  naturalHeight?: number | null;
   /**
-   * @minimum 0
-   * @nullable
-   */
-  naturalWidth?: number | null
+     * @minimum 0
+     * @nullable
+     */
+  naturalWidth?: number | null;
   /** @nullable */
-  opacity?: number | null
+  opacity?: number | null;
 }

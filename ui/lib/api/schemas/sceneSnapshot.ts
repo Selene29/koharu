@@ -3,13 +3,13 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { Scene } from './scene'
+import type { Scene } from './scene';
 
 /**
  * JSON-shaped scene snapshot for the UI (no postcard decoder in JS).
  */
 export interface SceneSnapshot {
   /** @minimum 0 */
-  epoch: number
-  scene: Scene
+  epoch: number;
+  scene: Scene;
 }

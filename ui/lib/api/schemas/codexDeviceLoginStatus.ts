@@ -3,13 +3,13 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { CodexAuthAttemptStatus } from './codexAuthAttemptStatus'
+import type { CodexAuthAttemptStatus } from './codexAuthAttemptStatus';
 
 export interface CodexDeviceLoginStatus {
   /** @nullable */
-  accountId?: string | null
+  accountId?: string | null;
   /** @nullable */
-  error?: string | null
-  loginId: string
-  status: CodexAuthAttemptStatus
+  error?: string | null;
+  loginId: string;
+  status: CodexAuthAttemptStatus;
 }

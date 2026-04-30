@@ -4,10 +4,11 @@
  * OpenAPI spec version: 0.0.1
  */
 
-export type MaskRole = (typeof MaskRole)[keyof typeof MaskRole]
+export type MaskRole = typeof MaskRole[keyof typeof MaskRole];
+
 
 export const MaskRole = {
   brushInpaint: 'brushInpaint',
   segment: 'segment',
   bubble: 'bubble',
-} as const
+} as const;

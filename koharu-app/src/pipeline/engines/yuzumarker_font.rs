@@ -8,7 +8,7 @@ use koharu_core::{FontPrediction, NodeDataPatch, NodePatch, Op, TextDataPatch};
 use koharu_ml::font_detector::FontDetector;
 
 use crate::pipeline::artifacts::Artifact;
-use crate::pipeline::engine::{Engine, EngineCtx, EngineInfo};
+use crate::pipeline::engine::{Engine, EngineCtx, EngineInfo, EngineResource};
 use crate::pipeline::engines::support::{load_source_image, text_nodes};
 
 pub struct Model(FontDetector);
@@ -66,6 +66,7 @@ inventory::submit! {
         name: "YuzuMarker Font Detection",
         needs: &[Artifact::TextBoxes],
         produces: &[Artifact::FontPredictions],
+        resource: EngineResource::Model,
         load: |runtime, cpu| Box::pin(async move {
             let m = FontDetector::load(runtime, cpu).await?;
             Ok(Box::new(Model(m)) as Box<dyn Engine>)

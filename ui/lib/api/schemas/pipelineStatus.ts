@@ -4,17 +4,13 @@
  * OpenAPI spec version: 0.0.1
  */
 
-export type PipelineStatus =
-  | {
-      status: 'running'
-    }
-  | {
-      status: 'completed'
-    }
-  | {
-      status: 'cancelled'
-    }
-  | {
-      reason: string
-      status: 'failed'
-    }
+export type PipelineStatus = {
+  status: 'running';
+} | {
+  status: 'completed';
+} | {
+  status: 'cancelled';
+} | {
+  reason: string;
+  status: 'failed';
+};

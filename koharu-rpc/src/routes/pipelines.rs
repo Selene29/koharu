@@ -89,6 +89,7 @@ async fn start_pipeline(
             region: req.region,
             reading_order: req.reading_order,
         },
+        parallelism: app.config.load().pipeline.parallelism.clone(),
     };
 
     let operation_id = Uuid::new_v4().to_string();

@@ -6,5 +6,5 @@
 
 export interface DataConfigPatch {
   /** @nullable */
-  path?: string | null
+  path?: string | null;
 }

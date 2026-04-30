@@ -4,10 +4,12 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**error** | Option<**String**> |  | [optional]
+**downloaded** | **i64** |  | 
+**filename** | **String** |  | 
 **id** | **String** |  | 
-**status** | [**models::JobStatus**](JobStatus.md) |  | 
-**event** | **Event** |  (enum: jobFinished) | 
+**status** | [**models::DownloadStatus**](DownloadStatus.md) |  | 
+**total** | Option<**i64**> |  | [optional]
+**event** | **Event** |  (enum: downloadProgress) | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

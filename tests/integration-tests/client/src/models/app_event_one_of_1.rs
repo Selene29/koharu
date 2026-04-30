@@ -13,32 +13,59 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AppEventOneOf1 {
-    #[serde(rename = "epoch")]
-    pub epoch: u64,
+    #[serde(rename = "currentPage")]
+    pub current_page: i32,
+    #[serde(rename = "currentStepIndex")]
+    pub current_step_index: i32,
+    #[serde(rename = "jobId")]
+    pub job_id: String,
+    #[serde(rename = "overallPercent")]
+    pub overall_percent: i32,
+    #[serde(rename = "status")]
+    pub status: Box<models::PipelineStatus>,
+    #[serde(rename = "step", skip_serializing_if = "Option::is_none")]
+    pub step: Option<models::PipelineStep>,
+    #[serde(rename = "totalPages")]
+    pub total_pages: i32,
+    #[serde(rename = "totalSteps")]
+    pub total_steps: i32,
     #[serde(rename = "event")]
     pub event: Event,
-    #[serde(rename = "op")]
-    pub op: Box<models::Op>,
 }
 
 impl AppEventOneOf1 {
-    pub fn new(epoch: u64, event: Event, op: models::Op) -> AppEventOneOf1 {
+    pub fn new(
+        current_page: i32,
+        current_step_index: i32,
+        job_id: String,
+        overall_percent: i32,
+        status: models::PipelineStatus,
+        total_pages: i32,
+        total_steps: i32,
+        event: Event,
+    ) -> AppEventOneOf1 {
         AppEventOneOf1 {
-            epoch,
+            current_page,
+            current_step_index,
+            job_id,
+            overall_percent,
+            status: Box::new(status),
+            step: None,
+            total_pages,
+            total_steps,
             event,
-            op: Box::new(op),
         }
     }
 }
 ///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Event {
-    #[serde(rename = "opUndone")]
-    OpUndone,
+    #[serde(rename = "jobProgress")]
+    JobProgress,
 }
 
 impl Default for Event {
     fn default() -> Event {
-        Self::OpUndone
+        Self::JobProgress
     }
 }

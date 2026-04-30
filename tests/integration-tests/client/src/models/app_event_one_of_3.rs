@@ -11,30 +11,74 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
+/// AppEventOneOf3 : Diagnostic per-step / per-page log line. Less severe than JobWarning; includes info-level events like \"step skipped (already satisfied)\" and the per-page auto-completion decision.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AppEventOneOf3 {
+    #[serde(
+        rename = "detail",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub detail: Option<Option<String>>,
+    #[serde(rename = "jobId")]
+    pub job_id: String,
+    #[serde(rename = "level")]
+    pub level: models::JobLogLevel,
+    #[serde(rename = "message")]
+    pub message: String,
+    /// 0-based page index this log refers to. `None` for global messages.
+    #[serde(
+        rename = "pageIndex",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub page_index: Option<Option<u32>>,
+    /// Engine id (e.g. `\"paddle-ocr\"`) when applicable.
+    #[serde(
+        rename = "stepId",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub step_id: Option<Option<String>>,
+    #[serde(rename = "totalPages")]
+    pub total_pages: u32,
     #[serde(rename = "event")]
     pub event: Event,
-    #[serde(rename = "id")]
-    pub id: String,
-    #[serde(rename = "kind")]
-    pub kind: String,
 }
 
 impl AppEventOneOf3 {
-    pub fn new(event: Event, id: String, kind: String) -> AppEventOneOf3 {
-        AppEventOneOf3 { event, id, kind }
+    /// Diagnostic per-step / per-page log line. Less severe than JobWarning; includes info-level events like \"step skipped (already satisfied)\" and the per-page auto-completion decision.
+    pub fn new(
+        job_id: String,
+        level: models::JobLogLevel,
+        message: String,
+        total_pages: u32,
+        event: Event,
+    ) -> AppEventOneOf3 {
+        AppEventOneOf3 {
+            detail: None,
+            job_id,
+            level,
+            message,
+            page_index: None,
+            step_id: None,
+            total_pages,
+            event,
+        }
     }
 }
 ///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Event {
-    #[serde(rename = "jobStarted")]
-    JobStarted,
+    #[serde(rename = "jobLog")]
+    JobLog,
 }
 
 impl Default for Event {
     fn default() -> Event {
-        Self::JobStarted
+        Self::JobLog
     }
 }

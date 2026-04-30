@@ -3,17 +3,14 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { ImageData } from './imageData'
-import type { MaskData } from './maskData'
-import type { TextData } from './textData'
+import type { ImageData } from './imageData';
+import type { MaskData } from './maskData';
+import type { TextData } from './textData';
 
-export type NodeKind =
-  | {
-      image: ImageData
-    }
-  | {
-      text: TextData
-    }
-  | {
-      mask: MaskData
-    }
+export type NodeKind = {
+  image: ImageData;
+} | {
+  text: TextData;
+} | {
+  mask: MaskData;
+};

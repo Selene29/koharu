@@ -3,17 +3,17 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { PageId } from './pageId'
+import type { PageId } from './pageId';
 
 export interface CodexImageGenerationOptions {
   /** @nullable */
-  instructions?: string | null
+  instructions?: string | null;
   /** @nullable */
-  model?: string | null
-  pageId: PageId
-  prompt: string
+  model?: string | null;
+  pageId: PageId;
+  prompt: string;
   /** @nullable */
-  quality?: string | null
+  quality?: string | null;
   /** @nullable */
-  size?: string | null
+  size?: string | null;
 }

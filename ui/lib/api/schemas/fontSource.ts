@@ -4,9 +4,10 @@
  * OpenAPI spec version: 0.0.1
  */
 
-export type FontSource = (typeof FontSource)[keyof typeof FontSource]
+export type FontSource = typeof FontSource[keyof typeof FontSource];
+
 
 export const FontSource = {
   system: 'system',
   google: 'google',
-} as const
+} as const;

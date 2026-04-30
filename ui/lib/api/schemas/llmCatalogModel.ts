@@ -3,11 +3,11 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { LlmTarget } from './llmTarget'
+import type { LlmTarget } from './llmTarget';
 
 export interface LlmCatalogModel {
-  downloaded: boolean
-  languages: string[]
-  name: string
-  target: LlmTarget
+  downloaded: boolean;
+  languages: string[];
+  name: string;
+  target: LlmTarget;
 }

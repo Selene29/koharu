@@ -3,30 +3,30 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { JobLogLevel } from './jobLogLevel'
+import type { JobLogLevel } from './jobLogLevel';
 
 /**
  * Diagnostic log line emitted during a pipeline run. Used for per-step and
- * per-page status messages (skipped, ran, completion-decision) that don't
- * rise to the level of `JobWarning`.
+per-page status messages (skipped, ran, completion-decision) that don't
+rise to the level of `JobWarning`.
  */
 export interface JobLogEvent {
   /** @nullable */
-  detail?: string | null
-  jobId: string
-  level: JobLogLevel
-  message: string
+  detail?: string | null;
+  jobId: string;
+  level: JobLogLevel;
+  message: string;
   /**
-   * 0-based page index this log refers to. `None` for global messages.
-   * @minimum 0
-   * @nullable
-   */
-  pageIndex?: number | null
+     * 0-based page index this log refers to. `None` for global messages.
+     * @minimum 0
+     * @nullable
+     */
+  pageIndex?: number | null;
   /**
-   * Engine id (e.g. `"paddle-ocr"`) when applicable.
-   * @nullable
-   */
-  stepId?: string | null
+     * Engine id (e.g. `"paddle-ocr"`) when applicable.
+     * @nullable
+     */
+  stepId?: string | null;
   /** @minimum 0 */
-  totalPages: number
+  totalPages: number;
 }

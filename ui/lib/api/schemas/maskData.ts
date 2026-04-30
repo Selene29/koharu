@@ -3,10 +3,10 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { BlobRef } from './blobRef'
-import type { MaskRole } from './maskRole'
+import type { BlobRef } from './blobRef';
+import type { MaskRole } from './maskRole';
 
 export interface MaskData {
-  blob: BlobRef
-  role: MaskRole
+  blob: BlobRef;
+  role: MaskRole;
 }

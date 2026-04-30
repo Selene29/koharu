@@ -13,6 +13,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LlmCatalogModel {
+    #[serde(rename = "downloaded")]
+    pub downloaded: bool,
     #[serde(rename = "languages")]
     pub languages: Vec<String>,
     #[serde(rename = "name")]
@@ -22,8 +24,14 @@ pub struct LlmCatalogModel {
 }
 
 impl LlmCatalogModel {
-    pub fn new(languages: Vec<String>, name: String, target: models::LlmTarget) -> LlmCatalogModel {
+    pub fn new(
+        downloaded: bool,
+        languages: Vec<String>,
+        name: String,
+        target: models::LlmTarget,
+    ) -> LlmCatalogModel {
         LlmCatalogModel {
+            downloaded,
             languages,
             name,
             target: Box::new(target),

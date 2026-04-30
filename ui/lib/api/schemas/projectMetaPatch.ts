@@ -3,12 +3,12 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
-import type { ProjectStyle } from './projectStyle'
+import type { ProjectStyle } from './projectStyle';
 
 export interface ProjectMetaPatch {
   /** @nullable */
-  name?: string | null
-  style?: null | ProjectStyle
+  name?: string | null;
+  style?: null | ProjectStyle;
   /** @nullable */
-  updatedAt?: string | null
+  updatedAt?: string | null;
 }
