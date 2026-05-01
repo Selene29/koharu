@@ -6,7 +6,7 @@ use koharu_core::{Op, TextData};
 use koharu_ml::anime_text::AnimeTextDetector;
 
 use crate::pipeline::artifacts::Artifact;
-use crate::pipeline::engine::{Engine, EngineCtx, EngineInfo};
+use crate::pipeline::engine::{Engine, EngineCtx, EngineInfo, EngineResource};
 use crate::pipeline::engines::support::{
     clear_text_nodes_ops, load_source_image, new_text_node, page_node_count,
     sort_manga_reading_order, text_region_to_pair,
@@ -51,6 +51,7 @@ inventory::submit! {
         name: "Anime Text YOLO (N)",
         needs: &[],
         produces: &[Artifact::TextBoxes],
+        resource: EngineResource::Model,
         load: |runtime, cpu| Box::pin(async move {
             let m = AnimeTextDetector::load(runtime, cpu).await?;
             Ok(Box::new(Model(m)) as Box<dyn Engine>)
