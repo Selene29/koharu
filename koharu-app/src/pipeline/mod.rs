@@ -439,9 +439,17 @@ pub async fn run(
     };
 
     let run_started = Instant::now();
+    let ml_overview = koharu_ml::compute_device_overview(cpu);
+    let llama_overview = llama_compute_overview(&llm);
     let step_plan = order
         .iter()
-        .map(|&i| format!("{}[{}]", infos[i].id, infos[i].resource.label()))
+        .map(|&i| {
+            format!(
+                "{}[{}]",
+                infos[i].id,
+                step_resource_label(infos[i].resource, &ml_overview, &llama_overview)
+            )
+        })
         .collect::<Vec<_>>()
         .join(" -> ");
 
@@ -463,8 +471,6 @@ pub async fn run(
         None,
     );
 
-    let ml_overview = koharu_ml::compute_device_overview(cpu);
-    let llama_overview = llama_compute_overview(&llm);
     emit_log(
         JobLogLevel::Info,
         None,
@@ -868,19 +874,46 @@ fn llama_compute_overview(llm: &llm::Model) -> ComputeOverviewLine {
 
     ComputeOverviewLine {
         summary: format!(
-            "LLM cpu-only={}, gpu-offload={}, devices={}, gpu-like={}",
+            "LLM device={}, cpu-only={}, gpu-offload={}, devices={}, gpu-like={}",
+            if llm_device_uses_gpu(llm.is_cpu(), gpu_offload, gpu_like_devices) {
+                "gpu-offload"
+            } else {
+                "cpu"
+            },
             llm.is_cpu(),
             gpu_offload,
             devices.len(),
             gpu_like_devices
         ),
         detail: device_detail,
+        selected_device: if llm_device_uses_gpu(llm.is_cpu(), gpu_offload, gpu_like_devices) {
+            "gpu-offload".to_string()
+        } else {
+            "cpu".to_string()
+        },
     }
 }
 
 struct ComputeOverviewLine {
+    selected_device: String,
     summary: String,
     detail: String,
+}
+
+fn step_resource_label(
+    resource: EngineResource,
+    ml_overview: &koharu_ml::ComputeDeviceOverview,
+    llama_overview: &ComputeOverviewLine,
+) -> String {
+    match resource {
+        EngineResource::Model => format!("model:{}", ml_overview.selected_device),
+        EngineResource::Llm => format!("llm:{}", llama_overview.selected_device),
+        EngineResource::Render => "render:cpu".to_string(),
+    }
+}
+
+fn llm_device_uses_gpu(cpu: bool, gpu_offload: bool, gpu_like_devices: usize) -> bool {
+    !cpu && gpu_offload && gpu_like_devices > 0
 }
 
 fn first_non_empty<'a>(first: &'a str, second: &'a str) -> &'a str {

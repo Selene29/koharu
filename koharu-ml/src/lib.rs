@@ -30,6 +30,8 @@ static GPU_SUPPORTED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComputeDeviceOverview {
+    pub selected_device: String,
+    pub fallback_reason: Option<String>,
     pub summary: String,
     pub detail: String,
 }
@@ -58,12 +60,19 @@ pub fn compute_device_overview(cpu: bool) -> ComputeDeviceOverview {
         .map(|version| version.to_string())
         .map_err(|err| format!("{err:#}"));
     let cuda_compute = koharu_runtime::compute_capability()
-        .map(|(major, minor)| format!("{major}.{minor}"))
+        .map(|(major, minor)| (major, minor))
         .map_err(|err| format!("{err:#}"));
     let selected = match device(cpu) {
         Ok(device) => device_label(&device).to_string(),
         Err(err) => format!("probe failed: {err:#}"),
     };
+    let fallback_reason = ml_fallback_reason(
+        cpu,
+        &selected,
+        cuda_available,
+        metal_available,
+        &cuda_compute,
+    );
 
     let cuda = if cuda_available {
         "available"
@@ -78,29 +87,73 @@ pub fn compute_device_overview(cpu: bool) -> ComputeDeviceOverview {
     let driver = cuda_driver
         .as_ref()
         .map_or("unknown".to_string(), |version| version.to_string());
-    let compute = cuda_compute
+    let gpu_capability = cuda_compute
         .as_ref()
-        .map_or("unknown".to_string(), |capability| capability.to_string());
+        .map_or("unknown".to_string(), |(major, minor)| {
+            format!("{major}.{minor}")
+        });
 
     let detail = format!(
-        "candle cuda={cuda}, cuda driver={driver}, cuda compute={compute}, metal={metal}{}{}",
+        "candle cuda runtime={cuda}, nvidia driver CUDA={driver}, GPU compute capability={gpu_capability}, metal={metal}{}{}{}",
         cuda_driver
             .err()
             .map(|err| format!("; cuda driver error: {err}"))
             .unwrap_or_default(),
         cuda_compute
             .err()
-            .map(|err| format!("; cuda compute error: {err}"))
+            .map(|err| format!("; GPU compute capability error: {err}"))
+            .unwrap_or_default(),
+        fallback_reason
+            .as_ref()
+            .map(|reason| format!("; ML fallback: {reason}"))
             .unwrap_or_default()
     );
+    let reason_suffix = fallback_reason
+        .as_ref()
+        .map(|reason| format!(" ({reason})"))
+        .unwrap_or_default();
 
     ComputeDeviceOverview {
+        selected_device: selected.clone(),
+        fallback_reason,
         summary: format!(
-            "ML device={selected}, cpu-only={}, cuda={cuda}, metal={metal}",
+            "ML device={selected}{reason_suffix}, cpu-only={}, cuda={cuda}, metal={metal}",
             if cpu { "true" } else { "false" }
         ),
         detail,
     }
+}
+
+fn ml_fallback_reason(
+    cpu: bool,
+    selected: &str,
+    cuda_available: bool,
+    metal_available: bool,
+    cuda_compute: &Result<(i32, i32), String>,
+) -> Option<String> {
+    if selected != "cpu" {
+        return None;
+    }
+    if cpu {
+        return Some("CPU-only override enabled".to_string());
+    }
+    if cuda_available {
+        return match cuda_compute {
+            Ok((major, minor)) if (*major, *minor) < (8, 0) => Some(format!(
+                "GPU compute capability {major}.{minor} is below required 8.0 for ML CUDA"
+            )),
+            Ok((major, minor)) => Some(format!(
+                "GPU compute capability {major}.{minor} was available but ML CUDA did not initialize"
+            )),
+            Err(err) => Some(format!(
+                "GPU compute capability could not be queried: {err}"
+            )),
+        };
+    }
+    if metal_available {
+        return Some("Metal was available but ML Metal did not initialize".to_string());
+    }
+    Some("no supported ML GPU backend detected".to_string())
 }
 
 fn device_label(device: &Device) -> &'static str {
@@ -123,6 +176,21 @@ mod tests {
 
         assert!(overview.summary.contains("ML device=cpu"));
         assert!(overview.summary.contains("cpu-only=true"));
-        assert!(overview.detail.contains("candle cuda="));
+        assert_eq!(overview.selected_device, "cpu");
+        assert_eq!(
+            overview.fallback_reason.as_deref(),
+            Some("CPU-only override enabled")
+        );
+        assert!(overview.detail.contains("candle cuda runtime="));
+    }
+
+    #[test]
+    fn ml_fallback_reason_distinguishes_gpu_capability_from_cuda_runtime() {
+        let reason = ml_fallback_reason(false, "cpu", true, false, &Ok((7, 5)));
+
+        assert_eq!(
+            reason.as_deref(),
+            Some("GPU compute capability 7.5 is below required 8.0 for ML CUDA")
+        );
     }
 }
