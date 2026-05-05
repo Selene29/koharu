@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**engine_limits** | Option<**std::collections::HashMap<String, u32>**> |  | [optional]
 **max_active_steps** | Option<**u32**> |  | [optional]
 **max_llm_steps** | Option<**u32**> |  | [optional]
 **max_model_steps** | Option<**u32**> |  | [optional]

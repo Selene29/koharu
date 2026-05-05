@@ -13,6 +13,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PipelineParallelismConfigPatch {
+    #[serde(rename = "engineLimits", skip_serializing_if = "Option::is_none")]
+    pub engine_limits: Option<std::collections::HashMap<String, u32>>,
     #[serde(
         rename = "maxActiveSteps",
         default,
@@ -60,6 +62,7 @@ pub struct PipelineParallelismConfigPatch {
 impl PipelineParallelismConfigPatch {
     pub fn new() -> PipelineParallelismConfigPatch {
         PipelineParallelismConfigPatch {
+            engine_limits: None,
             max_active_steps: None,
             max_llm_steps: None,
             max_model_steps: None,

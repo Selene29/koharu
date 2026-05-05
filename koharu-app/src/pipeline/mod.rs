@@ -135,7 +135,7 @@ struct PageState {
     done: bool,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct ActiveLimits {
     max_pages_in_flight: usize,
     max_active_steps: usize,
@@ -143,6 +143,7 @@ struct ActiveLimits {
     max_llm_steps: usize,
     max_render_steps: usize,
     max_same_engine_steps: usize,
+    engine_limits: std::collections::HashMap<String, usize>,
 }
 
 impl ActiveLimits {
@@ -154,7 +155,19 @@ impl ActiveLimits {
             max_llm_steps: config.max_llm_steps.max(1),
             max_render_steps: config.max_render_steps.max(1),
             max_same_engine_steps: config.max_same_engine_steps.max(1),
+            engine_limits: config
+                .engine_limits
+                .iter()
+                .map(|(engine_id, value)| (engine_id.clone(), (*value).max(1)))
+                .collect(),
         }
+    }
+
+    fn limit_for_engine(&self, engine_id: &str) -> usize {
+        self.engine_limits
+            .get(engine_id)
+            .copied()
+            .unwrap_or(self.max_same_engine_steps)
     }
 }
 
@@ -172,7 +185,7 @@ impl RunningCounts {
         if self.active_steps >= limits.max_active_steps {
             return false;
         }
-        if self.engine_count(info.id) >= limits.max_same_engine_steps {
+        if self.engine_count(info.id) >= limits.limit_for_engine(info.id) {
             return false;
         }
         match info.resource {
@@ -951,6 +964,7 @@ mod tests {
             max_llm_steps: 1,
             max_render_steps: 1,
             max_same_engine_steps: 1,
+            engine_limits: Default::default(),
         });
         let mut running = RunningCounts::default();
 
@@ -964,5 +978,25 @@ mod tests {
 
         running.finished(&MODEL_INFO);
         assert!(running.can_start(&MODEL_INFO, &limits));
+    }
+
+    #[test]
+    fn running_counts_allow_per_engine_limit_override() {
+        let limits = ActiveLimits::from_config(&PipelineParallelismConfig {
+            max_pages_in_flight: 2,
+            max_active_steps: 2,
+            max_model_steps: 2,
+            max_llm_steps: 1,
+            max_render_steps: 1,
+            max_same_engine_steps: 1,
+            engine_limits: [("test-model-limit".to_string(), 2)].into(),
+        });
+        let mut running = RunningCounts::default();
+
+        assert!(running.can_start(&MODEL_INFO, &limits));
+        running.started(&MODEL_INFO);
+        assert!(running.can_start(&MODEL_INFO, &limits));
+        running.started(&MODEL_INFO);
+        assert!(!running.can_start(&MODEL_INFO, &limits));
     }
 }

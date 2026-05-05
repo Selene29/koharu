@@ -1122,6 +1122,7 @@
               "inpainter": "lama-manga",
               "ocr": "paddle-ocr-vl-1.5",
               "parallelism": {
+                "engine_limits": {},
                 "max_active_steps": 2,
                 "max_llm_steps": 1,
                 "max_model_steps": 1,
@@ -3195,6 +3196,7 @@
               }
             ],
             "default": {
+              "engine_limits": {},
               "max_active_steps": 2,
               "max_llm_steps": 1,
               "max_model_steps": 1,
@@ -3283,6 +3285,17 @@
       "PipelineParallelismConfig": {
         "type": "object",
         "properties": {
+          "engine_limits": {
+            "type": "object",
+            "default": {},
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
           "max_active_steps": {
             "type": "integer",
             "default": 2,
@@ -3318,6 +3331,19 @@
       "PipelineParallelismConfigPatch": {
         "type": "object",
         "properties": {
+          "engineLimits": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
           "maxActiveSteps": {
             "type": [
               "integer",

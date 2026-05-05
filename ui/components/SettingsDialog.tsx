@@ -123,6 +123,7 @@ function appConfigToPatch(cfg: AppConfig): ConfigPatch {
             maxLlmSteps: cfg.pipeline.parallelism.max_llm_steps,
             maxRenderSteps: cfg.pipeline.parallelism.max_render_steps,
             maxSameEngineSteps: cfg.pipeline.parallelism.max_same_engine_steps,
+            engineLimits: cfg.pipeline.parallelism.engine_limits,
           }
         : undefined,
     }
@@ -171,6 +172,7 @@ const DEFAULT_PIPELINE_PARALLELISM = {
   max_llm_steps: 1,
   max_render_steps: 1,
   max_same_engine_steps: 1,
+  engine_limits: {} as Record<string, number>,
 }
 
 export function SettingsDialog({
@@ -524,7 +526,7 @@ function EnginesPane({
   const { t } = useTranslation()
   const parallelism = pipeline.parallelism ?? DEFAULT_PIPELINE_PARALLELISM
   const updateParallelism = (
-    key: keyof typeof DEFAULT_PIPELINE_PARALLELISM,
+    key: Exclude<keyof typeof DEFAULT_PIPELINE_PARALLELISM, 'engine_limits'>,
     rawValue: string,
   ) => {
     const parsed = Number.parseInt(rawValue, 10)
@@ -534,6 +536,20 @@ function EnginesPane({
       parallelism: {
         ...parallelism,
         [key]: value,
+      },
+    })
+  }
+  const updateEngineLimit = (engineId: string, rawValue: string) => {
+    const parsed = Number.parseInt(rawValue, 10)
+    const value = Number.isFinite(parsed) ? Math.min(32, Math.max(1, parsed)) : 1
+    onChange({
+      ...pipeline,
+      parallelism: {
+        ...parallelism,
+        engine_limits: {
+          ...parallelism.engine_limits,
+          [engineId]: value,
+        },
       },
     })
   }
@@ -647,6 +663,37 @@ function EnginesPane({
             value={parallelism.max_same_engine_steps}
             onChange={(value) => updateParallelism('max_same_engine_steps', value)}
           />
+        </div>
+      </div>
+
+      <div className='space-y-3 pt-2'>
+        <div>
+          <h3 className='text-sm font-semibold text-foreground'>
+            {t('settings.engineParallelism')}
+          </h3>
+          <p className='mt-0.5 text-xs leading-relaxed text-muted-foreground'>
+            {t('settings.engineParallelismDescription')}
+          </p>
+        </div>
+        <div className='grid gap-3 md:grid-cols-2'>
+          {sections.map(({ label, key, engines }) => {
+            const engineId = pipeline[key] ?? engines[0]?.id
+            const engine = engines.find((entry) => entry.id === engineId)
+            if (!engineId) return null
+            return (
+              <ParallelismInput
+                key={key}
+                label={label}
+                description={t('settings.engineParallelismLimitDescription', {
+                  engine: engine?.name ?? engineId,
+                })}
+                value={
+                  parallelism.engine_limits?.[engineId] ?? parallelism.max_same_engine_steps
+                }
+                onChange={(value) => updateEngineLimit(engineId, value)}
+              />
+            )
+          })}
         </div>
       </div>
     </div>

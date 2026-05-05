@@ -3,6 +3,8 @@
 //! Scene ops live in `op.rs`; push events in `events.rs`. Per-route request
 //! DTOs (multipart import, pipeline start) live in `koharu-rpc/src/routes/`.
 
+use std::collections::BTreeMap;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -245,6 +247,7 @@ pub struct PipelineParallelismConfigPatch {
     pub max_llm_steps: Option<usize>,
     pub max_render_steps: Option<usize>,
     pub max_same_engine_steps: Option<usize>,
+    pub engine_limits: Option<BTreeMap<String, usize>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToSchema)]

@@ -3,8 +3,10 @@
  * Do not edit manually.
  * OpenAPI spec version: 0.0.1
  */
+import type { PipelineParallelismConfigEngineLimits } from './pipelineParallelismConfigEngineLimits';
 
 export interface PipelineParallelismConfig {
+  engine_limits?: PipelineParallelismConfigEngineLimits;
   /** @minimum 0 */
   max_active_steps?: number;
   /** @minimum 0 */

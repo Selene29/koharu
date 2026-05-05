@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fs;
 
 use anyhow::{Context, Result};
@@ -90,6 +91,7 @@ pub struct PipelineParallelismConfig {
     pub max_llm_steps: usize,
     pub max_render_steps: usize,
     pub max_same_engine_steps: usize,
+    pub engine_limits: BTreeMap<String, usize>,
 }
 
 const PIPELINE_PARALLELISM_MAX: usize = 32;
@@ -102,6 +104,11 @@ impl PipelineParallelismConfig {
         self.max_llm_steps = clamp_parallelism(self.max_llm_steps);
         self.max_render_steps = clamp_parallelism(self.max_render_steps);
         self.max_same_engine_steps = clamp_parallelism(self.max_same_engine_steps);
+        self.engine_limits
+            .retain(|engine_id, value| !engine_id.trim().is_empty() && *value > 0);
+        for value in self.engine_limits.values_mut() {
+            *value = clamp_parallelism(*value);
+        }
     }
 }
 
@@ -114,6 +121,7 @@ impl Default for PipelineParallelismConfig {
             max_llm_steps: 1,
             max_render_steps: 1,
             max_same_engine_steps: 1,
+            engine_limits: BTreeMap::new(),
         }
     }
 }
@@ -297,6 +305,9 @@ pub fn apply_patch(config: &mut AppConfig, patch: koharu_core::ConfigPatch) {
             if let Some(value) = v.max_same_engine_steps {
                 config.pipeline.parallelism.max_same_engine_steps = value;
             }
+            if let Some(engine_limits) = v.engine_limits {
+                config.pipeline.parallelism.engine_limits = engine_limits;
+            }
         }
     }
     if let Some(providers) = patch.providers {
@@ -382,7 +393,8 @@ fn validate_pipeline_config(config: &mut AppConfig) -> bool {
         || before.max_model_steps != config.pipeline.parallelism.max_model_steps
         || before.max_llm_steps != config.pipeline.parallelism.max_llm_steps
         || before.max_render_steps != config.pipeline.parallelism.max_render_steps
-        || before.max_same_engine_steps != config.pipeline.parallelism.max_same_engine_steps;
+        || before.max_same_engine_steps != config.pipeline.parallelism.max_same_engine_steps
+        || before.engine_limits != config.pipeline.parallelism.engine_limits;
 
     changed
 }
@@ -546,6 +558,7 @@ mod tests {
         assert_eq!(config.pipeline.parallelism.max_llm_steps, 1);
         assert_eq!(config.pipeline.parallelism.max_render_steps, 1);
         assert_eq!(config.pipeline.parallelism.max_same_engine_steps, 1);
+        assert!(config.pipeline.parallelism.engine_limits.is_empty());
     }
 
     #[test]
@@ -559,6 +572,10 @@ mod tests {
                         max_pages_in_flight: Some(0),
                         max_active_steps: Some(99),
                         max_model_steps: Some(3),
+                        engine_limits: Some(BTreeMap::from([
+                            ("aot-inpainting".to_string(), 0),
+                            ("pp-doclayout-v3".to_string(), 99),
+                        ])),
                         ..Default::default()
                     }),
                     ..Default::default()
@@ -573,5 +590,20 @@ mod tests {
             PIPELINE_PARALLELISM_MAX
         );
         assert_eq!(config.pipeline.parallelism.max_model_steps, 3);
+        assert!(
+            !config
+                .pipeline
+                .parallelism
+                .engine_limits
+                .contains_key("aot-inpainting")
+        );
+        assert_eq!(
+            config
+                .pipeline
+                .parallelism
+                .engine_limits
+                .get("pp-doclayout-v3"),
+            Some(&PIPELINE_PARALLELISM_MAX)
+        );
     }
 }
