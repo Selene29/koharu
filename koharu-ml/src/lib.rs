@@ -28,6 +28,12 @@ pub use candle_core::Device;
 
 static GPU_SUPPORTED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComputeDeviceOverview {
+    pub summary: String,
+    pub detail: String,
+}
+
 pub fn device(cpu: bool) -> Result<Device> {
     if cpu {
         Ok(Device::Cpu)
@@ -42,5 +48,81 @@ pub fn device(cpu: bool) -> Result<Device> {
             "No GPU support detected; falling back to CPU. For better performance, ensure you have a compatible NVIDIA GPU with the latest drivers, or a recent Apple device with Metal support."
         );
         Ok(Device::Cpu)
+    }
+}
+
+pub fn compute_device_overview(cpu: bool) -> ComputeDeviceOverview {
+    let cuda_available = cuda_is_available();
+    let metal_available = metal_is_available();
+    let cuda_driver = koharu_runtime::nvidia_driver_version()
+        .map(|version| version.to_string())
+        .map_err(|err| format!("{err:#}"));
+    let cuda_compute = koharu_runtime::compute_capability()
+        .map(|(major, minor)| format!("{major}.{minor}"))
+        .map_err(|err| format!("{err:#}"));
+    let selected = match device(cpu) {
+        Ok(device) => device_label(&device).to_string(),
+        Err(err) => format!("probe failed: {err:#}"),
+    };
+
+    let cuda = if cuda_available {
+        "available"
+    } else {
+        "unavailable"
+    };
+    let metal = if metal_available {
+        "available"
+    } else {
+        "unavailable"
+    };
+    let driver = cuda_driver
+        .as_ref()
+        .map_or("unknown".to_string(), |version| version.to_string());
+    let compute = cuda_compute
+        .as_ref()
+        .map_or("unknown".to_string(), |capability| capability.to_string());
+
+    let detail = format!(
+        "candle cuda={cuda}, cuda driver={driver}, cuda compute={compute}, metal={metal}{}{}",
+        cuda_driver
+            .err()
+            .map(|err| format!("; cuda driver error: {err}"))
+            .unwrap_or_default(),
+        cuda_compute
+            .err()
+            .map(|err| format!("; cuda compute error: {err}"))
+            .unwrap_or_default()
+    );
+
+    ComputeDeviceOverview {
+        summary: format!(
+            "ML device={selected}, cpu-only={}, cuda={cuda}, metal={metal}",
+            if cpu { "true" } else { "false" }
+        ),
+        detail,
+    }
+}
+
+fn device_label(device: &Device) -> &'static str {
+    if device.is_cuda() {
+        "cuda:0"
+    } else if device.is_metal() {
+        "metal:0"
+    } else {
+        "cpu"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compute_device_overview_reports_cpu_override() {
+        let overview = compute_device_overview(true);
+
+        assert!(overview.summary.contains("ML device=cpu"));
+        assert!(overview.summary.contains("cpu-only=true"));
+        assert!(overview.detail.contains("candle cuda="));
     }
 }

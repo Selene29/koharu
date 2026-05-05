@@ -463,6 +463,21 @@ pub async fn run(
         None,
     );
 
+    let ml_overview = koharu_ml::compute_device_overview(cpu);
+    let llama_overview = llama_compute_overview(&llm);
+    emit_log(
+        JobLogLevel::Info,
+        None,
+        None,
+        format!(
+            "Compute overview: runtime-wants-gpu={}, {}; {}",
+            runtime.wants_gpu(),
+            ml_overview.summary,
+            llama_overview.summary
+        ),
+        Some(format!("{}; {}", ml_overview.detail, llama_overview.detail)),
+    );
+
     let mut page_states = pages
         .iter()
         .enumerate()
@@ -811,6 +826,78 @@ pub async fn run(
         });
     }
     Ok(RunOutcome { warning_count })
+}
+
+fn llama_compute_overview(llm: &llm::Model) -> ComputeOverviewLine {
+    let backend = llm.backend();
+    let gpu_offload = backend.supports_gpu_offload();
+    let devices = koharu_llm::safe::list_llama_ggml_backend_devices();
+    let gpu_like_devices = devices
+        .iter()
+        .filter(|device| {
+            matches!(
+                device.device_type,
+                koharu_llm::safe::LlamaBackendDeviceType::Accelerator
+                    | koharu_llm::safe::LlamaBackendDeviceType::Gpu
+                    | koharu_llm::safe::LlamaBackendDeviceType::IntegratedGpu
+            )
+        })
+        .count();
+    let device_detail = if devices.is_empty() {
+        "llama devices=none reported".to_string()
+    } else {
+        format!(
+            "llama devices={}",
+            devices
+                .iter()
+                .map(|device| {
+                    format!(
+                        "#{} {} {:?} {} (free {}, total {})",
+                        device.index,
+                        device.backend,
+                        device.device_type,
+                        first_non_empty(&device.description, &device.name),
+                        format_bytes(device.memory_free),
+                        format_bytes(device.memory_total)
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    };
+
+    ComputeOverviewLine {
+        summary: format!(
+            "LLM cpu-only={}, gpu-offload={}, devices={}, gpu-like={}",
+            llm.is_cpu(),
+            gpu_offload,
+            devices.len(),
+            gpu_like_devices
+        ),
+        detail: device_detail,
+    }
+}
+
+struct ComputeOverviewLine {
+    summary: String,
+    detail: String,
+}
+
+fn first_non_empty<'a>(first: &'a str, second: &'a str) -> &'a str {
+    if first.is_empty() { second } else { first }
+}
+
+fn format_bytes(bytes: usize) -> String {
+    const GIB: f64 = 1024.0 * 1024.0 * 1024.0;
+    const MIB: f64 = 1024.0 * 1024.0;
+
+    if bytes == 0 {
+        "unknown".to_string()
+    } else if bytes as f64 >= GIB {
+        format!("{:.1} GiB", bytes as f64 / GIB)
+    } else {
+        format!("{:.1} MiB", bytes as f64 / MIB)
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
