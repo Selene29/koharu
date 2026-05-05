@@ -146,6 +146,8 @@ struct ActiveLimits {
     engine_limits: std::collections::HashMap<String, usize>,
 }
 
+const RESOURCE_WAIT_LOG_INTERVAL: Duration = Duration::from_secs(5);
+
 impl ActiveLimits {
     fn from_config(config: &PipelineParallelismConfig) -> Self {
         Self {
@@ -169,6 +171,14 @@ impl ActiveLimits {
             .copied()
             .unwrap_or(self.max_same_engine_steps)
     }
+
+    fn limit_for_resource(&self, resource: EngineResource) -> usize {
+        match resource {
+            EngineResource::Model => self.max_model_steps,
+            EngineResource::Llm => self.max_llm_steps,
+            EngineResource::Render => self.max_render_steps,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -182,17 +192,35 @@ struct RunningCounts {
 
 impl RunningCounts {
     fn can_start(&self, info: &EngineInfo, limits: &ActiveLimits) -> bool {
+        self.blocked_reason(info, limits).is_none()
+    }
+
+    fn blocked_reason(&self, info: &EngineInfo, limits: &ActiveLimits) -> Option<String> {
         if self.active_steps >= limits.max_active_steps {
-            return false;
+            return Some(format!(
+                "active step cap {}/{}",
+                self.active_steps, limits.max_active_steps
+            ));
         }
-        if self.engine_count(info.id) >= limits.limit_for_engine(info.id) {
-            return false;
+        let engine_count = self.engine_count(info.id);
+        let engine_limit = limits.limit_for_engine(info.id);
+        if engine_count >= engine_limit {
+            return Some(format!(
+                "same-engine cap for {} {}/{}",
+                info.id, engine_count, engine_limit
+            ));
         }
-        match info.resource {
-            EngineResource::Model => self.model_steps < limits.max_model_steps,
-            EngineResource::Llm => self.llm_steps < limits.max_llm_steps,
-            EngineResource::Render => self.render_steps < limits.max_render_steps,
+        let resource_count = self.resource_count(info.resource);
+        let resource_limit = limits.limit_for_resource(info.resource);
+        if resource_count >= resource_limit {
+            return Some(format!(
+                "{} resource cap {}/{}",
+                info.resource.label(),
+                resource_count,
+                resource_limit
+            ));
         }
+        None
     }
 
     fn started(&mut self, info: &EngineInfo) {
@@ -222,6 +250,38 @@ impl RunningCounts {
 
     fn engine_count(&self, engine_id: &str) -> usize {
         self.engines.get(engine_id).copied().unwrap_or(0)
+    }
+
+    fn resource_count(&self, resource: EngineResource) -> usize {
+        match resource {
+            EngineResource::Model => self.model_steps,
+            EngineResource::Llm => self.llm_steps,
+            EngineResource::Render => self.render_steps,
+        }
+    }
+
+    fn describe_with_limits(&self, limits: &ActiveLimits) -> String {
+        format!(
+            "running active={}/{}, model={}/{}, llm={}/{}, render={}/{}",
+            self.active_steps,
+            limits.max_active_steps,
+            self.model_steps,
+            limits.max_model_steps,
+            self.llm_steps,
+            limits.max_llm_steps,
+            self.render_steps,
+            limits.max_render_steps
+        )
+    }
+
+    fn describe_for_engine(&self, info: &EngineInfo, limits: &ActiveLimits) -> String {
+        format!(
+            "{}; engine {}={}/{}",
+            self.describe_with_limits(limits),
+            info.id,
+            self.engine_count(info.id),
+            limits.limit_for_engine(info.id)
+        )
     }
 }
 
@@ -379,6 +439,11 @@ pub async fn run(
     };
 
     let run_started = Instant::now();
+    let step_plan = order
+        .iter()
+        .map(|&i| format!("{}[{}]", infos[i].id, infos[i].resource.label()))
+        .collect::<Vec<_>>()
+        .join(" -> ");
 
     emit_log(
         JobLogLevel::Info,
@@ -387,7 +452,7 @@ pub async fn run(
         format!(
             "Pipeline started: {} page(s), steps: {}, parallelism: pages={}, active={}, model={}, llm={}, render={}, same-engine={}",
             total_pages,
-            spec.steps.join(" -> "),
+            step_plan,
             limits.max_pages_in_flight,
             limits.max_active_steps,
             limits.max_model_steps,
@@ -415,6 +480,7 @@ pub async fn run(
     let mut running = RunningCounts::default();
     let mut tasks = JoinSet::new();
     let mut active_pages = 0usize;
+    let mut last_wait_logs: HashMap<&'static str, Instant> = HashMap::new();
 
     loop {
         while active_pages < limits.max_pages_in_flight {
@@ -524,6 +590,28 @@ pub async fn run(
                 }
 
                 if !running.can_start(info, &limits) {
+                    let reason = running
+                        .blocked_reason(info, &limits)
+                        .unwrap_or_else(|| "unknown scheduler cap".to_string());
+                    let now = Instant::now();
+                    let should_log = match last_wait_logs.get(info.id) {
+                        Some(last) => now.duration_since(*last) >= RESOURCE_WAIT_LOG_INTERVAL,
+                        None => true,
+                    };
+                    if should_log {
+                        last_wait_logs.insert(info.id, now);
+                        emit_log(
+                            JobLogLevel::Info,
+                            Some(page_states[page_slot].page_index),
+                            Some(info.id),
+                            format!("waiting for resource slot: {reason}"),
+                            Some(format!(
+                                "resource={}; {}",
+                                info.resource.label(),
+                                running.describe_for_engine(info, &limits)
+                            )),
+                        );
+                    }
                     ready_pages.push_back(page_slot);
                     continue;
                 }
@@ -560,8 +648,16 @@ pub async fn run(
             let result =
                 joined.map_err(|err| anyhow::anyhow!("pipeline step task failed: {err}"))?;
             let info = Registry::find(result.engine_id)?;
+            let running_before_finish = running.describe_for_engine(info, &limits);
             running.finished(info);
+            let running_after_finish = running.describe_with_limits(&limits);
             page_states[result.page_slot].running = false;
+            let resource_detail = format!(
+                "resource={}; before finish: {}; after finish: {}",
+                info.resource.label(),
+                running_before_finish,
+                running_after_finish
+            );
 
             match result.outcome {
                 StepTaskOutcome::LoadFailed(err) => {
@@ -569,8 +665,8 @@ pub async fn run(
                         JobLogLevel::Error,
                         Some(result.page_index),
                         Some(result.engine_id),
-                        "engine load failed".to_string(),
-                        Some(format!("{err:#}")),
+                        format!("engine load failed (resource={})", info.resource.label()),
+                        Some(format!("{err:#}; {resource_detail}")),
                     );
                     report_step_failure(
                         result.engine_id,
@@ -593,8 +689,8 @@ pub async fn run(
                         JobLogLevel::Error,
                         Some(result.page_index),
                         Some(result.engine_id),
-                        "step failed".to_string(),
-                        Some(format!("{err:#}; elapsed {elapsed:.2?}")),
+                        format!("step failed (resource={})", info.resource.label()),
+                        Some(format!("{err:#}; elapsed {elapsed:.2?}; {resource_detail}")),
                     );
                     report_step_failure(
                         result.engine_id,
@@ -619,8 +715,12 @@ pub async fn run(
                             JobLogLevel::Info,
                             Some(result.page_index),
                             Some(result.engine_id),
-                            format!("done in {:.2?} (no ops emitted)", elapsed),
-                            None,
+                            format!(
+                                "done in {:.2?} (no ops emitted, resource={})",
+                                elapsed,
+                                info.resource.label()
+                            ),
+                            Some(resource_detail.clone()),
                         );
                         page_states[result.page_slot].next_step += 1;
                         ready_pages.push_back(result.page_slot);
@@ -635,8 +735,8 @@ pub async fn run(
                                 JobLogLevel::Error,
                                 Some(result.page_index),
                                 Some(result.engine_id),
-                                "scene apply failed".to_string(),
-                                Some(format!("{err:#}")),
+                                format!("scene apply failed (resource={})", info.resource.label()),
+                                Some(format!("{err:#}; {resource_detail}")),
                             );
                             report_step_failure(
                                 result.engine_id,
@@ -659,12 +759,13 @@ pub async fn run(
                                 Some(result.page_index),
                                 Some(result.engine_id),
                                 format!(
-                                    "done in {:.2?} ({} op{})",
+                                    "done in {:.2?} ({} op{}, resource={})",
                                     elapsed,
                                     op_count,
-                                    if op_count == 1 { "" } else { "s" }
+                                    if op_count == 1 { "" } else { "s" },
+                                    info.resource.label()
                                 ),
-                                None,
+                                Some(resource_detail.clone()),
                             );
                             page_states[result.page_slot].next_step += 1;
                             ready_pages.push_back(result.page_slot);
@@ -1063,9 +1164,17 @@ mod tests {
         running.started(&MODEL_INFO);
 
         assert!(!running.can_start(&MODEL_INFO, &limits));
+        assert_eq!(
+            running.blocked_reason(&MODEL_INFO, &limits).as_deref(),
+            Some("same-engine cap for test-model-limit 1/1")
+        );
         assert!(running.can_start(&LLM_INFO, &limits));
         running.started(&LLM_INFO);
         assert!(!running.can_start(&LLM_INFO, &limits));
+        assert_eq!(
+            running.blocked_reason(&LLM_INFO, &limits).as_deref(),
+            Some("active step cap 2/2")
+        );
 
         running.finished(&MODEL_INFO);
         assert!(running.can_start(&MODEL_INFO, &limits));
@@ -1089,6 +1198,32 @@ mod tests {
         assert!(running.can_start(&MODEL_INFO, &limits));
         running.started(&MODEL_INFO);
         assert!(!running.can_start(&MODEL_INFO, &limits));
+        assert_eq!(
+            running.blocked_reason(&MODEL_INFO, &limits).as_deref(),
+            Some("active step cap 2/2")
+        );
+    }
+
+    #[test]
+    fn running_counts_report_resource_limits() {
+        let limits = ActiveLimits::from_config(&PipelineParallelismConfig {
+            max_pages_in_flight: 2,
+            max_active_steps: 2,
+            max_model_steps: 1,
+            max_llm_steps: 1,
+            max_render_steps: 1,
+            max_same_engine_steps: 2,
+            engine_limits: Default::default(),
+        });
+        let mut running = RunningCounts::default();
+
+        running.started(&MODEL_INFO);
+
+        assert_eq!(
+            running.blocked_reason(&MODEL_INFO, &limits).as_deref(),
+            Some("model resource cap 1/1")
+        );
+        assert_eq!(MODEL_INFO.resource.label(), "model");
     }
 
     fn text_node(data: TextData) -> Node {

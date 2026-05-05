@@ -100,6 +100,16 @@ pub enum EngineResource {
     Render,
 }
 
+impl EngineResource {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Model => "model",
+            Self::Llm => "llm",
+            Self::Render => "render",
+        }
+    }
+}
+
 inventory::collect!(EngineInfo);
 
 // ---------------------------------------------------------------------------
