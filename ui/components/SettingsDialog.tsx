@@ -525,6 +525,98 @@ function EnginesPane({
 }) {
   const { t } = useTranslation()
   const parallelism = pipeline.parallelism ?? DEFAULT_PIPELINE_PARALLELISM
+  const sections = [
+    {
+      label: t('settings.detector'),
+      workerLabel: t('settings.stepTextDetection'),
+      key: 'detector' as const,
+      engines: catalog.detectors,
+      resource: 'model' as const,
+    },
+    {
+      label: t('settings.segmenter'),
+      workerLabel: t('settings.stepTextMask'),
+      key: 'segmenter' as const,
+      engines: catalog.segmenters,
+      resource: 'model' as const,
+    },
+    {
+      label: t('settings.bubbleSegmenter'),
+      workerLabel: t('settings.stepBubbleMask'),
+      key: 'bubble_segmenter' as const,
+      engines: catalog.bubbleSegmenters,
+      resource: 'model' as const,
+    },
+    {
+      label: t('settings.fontDetector'),
+      workerLabel: t('settings.stepFontDetection'),
+      key: 'font_detector' as const,
+      engines: catalog.fontDetectors,
+      resource: 'model' as const,
+    },
+    {
+      label: t('settings.ocr'),
+      workerLabel: t('settings.stepOcr'),
+      key: 'ocr' as const,
+      engines: catalog.ocr,
+      resource: 'model' as const,
+    },
+    {
+      label: t('settings.translator'),
+      workerLabel: t('settings.stepTranslation'),
+      key: 'translator' as const,
+      engines: catalog.translators,
+      resource: 'llm' as const,
+    },
+    {
+      label: t('settings.inpainter'),
+      workerLabel: t('settings.stepInpainting'),
+      key: 'inpainter' as const,
+      engines: catalog.inpainters,
+      resource: 'model' as const,
+    },
+    {
+      label: t('settings.renderer'),
+      workerLabel: t('settings.stepRender'),
+      key: 'renderer' as const,
+      engines: catalog.renderers,
+      resource: 'render' as const,
+    },
+  ]
+  const engineIdFor = (section: (typeof sections)[number]) =>
+    pipeline[section.key] ?? section.engines[0]?.id
+  const workerLimitFor = (section: (typeof sections)[number]) => {
+    const engineId = engineIdFor(section)
+    if (!engineId) return 1
+    return parallelism.engine_limits?.[engineId] ?? parallelism.max_same_engine_steps ?? 1
+  }
+  const recomputeParallelismForWorkers = (
+    nextPipeline: import('@/lib/api/schemas').PipelineConfig,
+    nextEngineLimits: Record<string, number>,
+  ) => {
+    let modelWorkers = 0
+    let llmWorkers = 0
+    let renderWorkers = 0
+    for (const section of sections) {
+      const engineId = nextPipeline[section.key] ?? section.engines[0]?.id
+      if (!engineId) continue
+      const limit = nextEngineLimits[engineId] ?? 1
+      if (section.resource === 'llm') llmWorkers += limit
+      else if (section.resource === 'render') renderWorkers += limit
+      else modelWorkers += limit
+    }
+    const totalWorkers = modelWorkers + llmWorkers + renderWorkers
+    return {
+      ...parallelism,
+      max_pages_in_flight: Math.max(1, totalWorkers),
+      max_active_steps: Math.max(1, totalWorkers),
+      max_model_steps: Math.max(1, modelWorkers),
+      max_llm_steps: Math.max(1, llmWorkers),
+      max_render_steps: Math.max(1, renderWorkers),
+      max_same_engine_steps: 1,
+      engine_limits: nextEngineLimits,
+    }
+  }
   const updateParallelism = (
     key: Exclude<keyof typeof DEFAULT_PIPELINE_PARALLELISM, 'engine_limits'>,
     rawValue: string,
@@ -539,59 +631,32 @@ function EnginesPane({
       },
     })
   }
-  const updateEngineLimit = (engineId: string, rawValue: string) => {
-    const parsed = Number.parseInt(rawValue, 10)
-    const value = Number.isFinite(parsed) ? Math.min(32, Math.max(1, parsed)) : 1
+  const updateSelectedEngine = (section: (typeof sections)[number], engineId: string) => {
+    const previousEngineId = engineIdFor(section)
+    const nextPipeline = { ...pipeline, [section.key]: engineId }
+    const nextEngineLimits = { ...parallelism.engine_limits }
+    if (previousEngineId && previousEngineId !== engineId) {
+      nextEngineLimits[engineId] = nextEngineLimits[previousEngineId] ?? workerLimitFor(section)
+    }
     onChange({
-      ...pipeline,
-      parallelism: {
-        ...parallelism,
-        engine_limits: {
-          ...parallelism.engine_limits,
-          [engineId]: value,
-        },
-      },
+      ...nextPipeline,
+      parallelism: recomputeParallelismForWorkers(nextPipeline, nextEngineLimits),
     })
   }
-
-  const sections = [
-    {
-      label: t('settings.detector'),
-      key: 'detector' as const,
-      engines: catalog.detectors,
-    },
-    {
-      label: t('settings.fontDetector'),
-      key: 'font_detector' as const,
-      engines: catalog.fontDetectors,
-    },
-    {
-      label: t('settings.segmenter'),
-      key: 'segmenter' as const,
-      engines: catalog.segmenters,
-    },
-    {
-      label: t('settings.bubbleSegmenter'),
-      key: 'bubble_segmenter' as const,
-      engines: catalog.bubbleSegmenters,
-    },
-    { label: t('settings.ocr'), key: 'ocr' as const, engines: catalog.ocr },
-    {
-      label: t('settings.translator'),
-      key: 'translator' as const,
-      engines: catalog.translators,
-    },
-    {
-      label: t('settings.inpainter'),
-      key: 'inpainter' as const,
-      engines: catalog.inpainters,
-    },
-    {
-      label: t('settings.renderer'),
-      key: 'renderer' as const,
-      engines: catalog.renderers,
-    },
-  ]
+  const updateWorkerLimit = (section: (typeof sections)[number], rawValue: string) => {
+    const engineId = engineIdFor(section)
+    if (!engineId) return
+    const parsed = Number.parseInt(rawValue, 10)
+    const value = Number.isFinite(parsed) ? Math.min(32, Math.max(1, parsed)) : 1
+    const nextEngineLimits = {
+      ...parallelism.engine_limits,
+      [engineId]: value,
+    }
+    onChange({
+      ...pipeline,
+      parallelism: recomputeParallelismForWorkers(pipeline, nextEngineLimits),
+    })
+  }
 
   return (
     <div className='space-y-4'>
@@ -601,7 +666,11 @@ function EnginesPane({
           <Label className='text-xs'>{label}</Label>
           <Select
             value={pipeline[key] ?? engines[0]?.id ?? ''}
-            onValueChange={(v) => onChange({ ...pipeline, [key]: v })}
+            onValueChange={(v) => {
+              const section = sections.find((entry) => entry.key === key)
+              if (section) updateSelectedEngine(section, v)
+              else onChange({ ...pipeline, [key]: v })
+            }}
           >
             <SelectTrigger className='w-full'>
               <SelectValue />
@@ -620,82 +689,105 @@ function EnginesPane({
       <div className='space-y-3 pt-2'>
         <div>
           <h3 className='text-sm font-semibold text-foreground'>
-            {t('settings.pipelineParallelism')}
+            {t('settings.pipelineWorkers')}
           </h3>
           <p className='mt-0.5 text-xs leading-relaxed text-muted-foreground'>
-            {t('settings.pipelineParallelismDescription')}
+            {t('settings.pipelineWorkersDescription')}
           </p>
         </div>
-        <div className='grid gap-3 md:grid-cols-2'>
-          <ParallelismInput
-            label={t('settings.maxPagesInFlight')}
-            description={t('settings.maxPagesInFlightDescription')}
-            value={parallelism.max_pages_in_flight}
-            onChange={(value) => updateParallelism('max_pages_in_flight', value)}
-          />
-          <ParallelismInput
-            label={t('settings.maxActiveSteps')}
-            description={t('settings.maxActiveStepsDescription')}
-            value={parallelism.max_active_steps}
-            onChange={(value) => updateParallelism('max_active_steps', value)}
-          />
-          <ParallelismInput
-            label={t('settings.maxModelSteps')}
-            description={t('settings.maxModelStepsDescription')}
-            value={parallelism.max_model_steps}
-            onChange={(value) => updateParallelism('max_model_steps', value)}
-          />
-          <ParallelismInput
-            label={t('settings.maxLlmSteps')}
-            description={t('settings.maxLlmStepsDescription')}
-            value={parallelism.max_llm_steps}
-            onChange={(value) => updateParallelism('max_llm_steps', value)}
-          />
-          <ParallelismInput
-            label={t('settings.maxRenderSteps')}
-            description={t('settings.maxRenderStepsDescription')}
-            value={parallelism.max_render_steps}
-            onChange={(value) => updateParallelism('max_render_steps', value)}
-          />
-          <ParallelismInput
-            label={t('settings.maxSameEngineSteps')}
-            description={t('settings.maxSameEngineStepsDescription')}
-            value={parallelism.max_same_engine_steps}
-            onChange={(value) => updateParallelism('max_same_engine_steps', value)}
-          />
+        <div className='overflow-hidden rounded-md border border-border'>
+          <div className='grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_96px] gap-3 border-b border-border bg-muted/40 px-3 py-2 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase'>
+            <span>{t('settings.pipelineStep')}</span>
+            <span>{t('settings.pipelineEngine')}</span>
+            <span className='text-right'>{t('settings.pipelineWorkersCount')}</span>
+          </div>
+          <div className='divide-y divide-border'>
+            {sections.map((section) => {
+              const engineId = engineIdFor(section)
+              const engine = section.engines.find((entry) => entry.id === engineId)
+              if (!engineId) return null
+              return (
+                <div
+                  key={section.key}
+                  className='grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_96px] items-center gap-3 px-3 py-2'
+                >
+                  <div className='min-w-0 text-sm font-medium'>{section.workerLabel}</div>
+                  <div className='min-w-0'>
+                    <div className='truncate text-sm'>{engine?.name ?? engineId}</div>
+                    <div className='truncate font-mono text-[11px] text-muted-foreground'>
+                      {engineId}
+                    </div>
+                  </div>
+                  <Input
+                    aria-label={t('settings.pipelineWorkersCountFor', {
+                      step: section.workerLabel,
+                    })}
+                    type='number'
+                    min='1'
+                    max='32'
+                    step='1'
+                    inputMode='numeric'
+                    value={String(workerLimitFor(section))}
+                    onChange={(event) => updateWorkerLimit(section, event.target.value)}
+                    className='h-8 text-right'
+                  />
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
 
-      <div className='space-y-3 pt-2'>
-        <div>
-          <h3 className='text-sm font-semibold text-foreground'>
-            {t('settings.engineParallelism')}
-          </h3>
-          <p className='mt-0.5 text-xs leading-relaxed text-muted-foreground'>
-            {t('settings.engineParallelismDescription')}
-          </p>
-        </div>
-        <div className='grid gap-3 md:grid-cols-2'>
-          {sections.map(({ label, key, engines }) => {
-            const engineId = pipeline[key] ?? engines[0]?.id
-            const engine = engines.find((entry) => entry.id === engineId)
-            if (!engineId) return null
-            return (
+      <Accordion type='single' collapsible className='pt-2'>
+        <AccordionItem value='advanced-pipeline-limits' className='border-border'>
+          <AccordionTrigger className='py-3 text-sm hover:no-underline'>
+            {t('settings.advancedPipelineLimits')}
+          </AccordionTrigger>
+          <AccordionContent className='space-y-3 pb-1'>
+            <p className='text-xs leading-relaxed text-muted-foreground'>
+              {t('settings.advancedPipelineLimitsDescription')}
+            </p>
+            <div className='grid gap-3 md:grid-cols-2'>
               <ParallelismInput
-                key={key}
-                label={label}
-                description={t('settings.engineParallelismLimitDescription', {
-                  engine: engine?.name ?? engineId,
-                })}
-                value={
-                  parallelism.engine_limits?.[engineId] ?? parallelism.max_same_engine_steps
-                }
-                onChange={(value) => updateEngineLimit(engineId, value)}
+                label={t('settings.maxPagesInFlight')}
+                description={t('settings.maxPagesInFlightDescription')}
+                value={parallelism.max_pages_in_flight}
+                onChange={(value) => updateParallelism('max_pages_in_flight', value)}
               />
-            )
-          })}
-        </div>
-      </div>
+              <ParallelismInput
+                label={t('settings.maxActiveSteps')}
+                description={t('settings.maxActiveStepsDescription')}
+                value={parallelism.max_active_steps}
+                onChange={(value) => updateParallelism('max_active_steps', value)}
+              />
+              <ParallelismInput
+                label={t('settings.maxModelSteps')}
+                description={t('settings.maxModelStepsDescription')}
+                value={parallelism.max_model_steps}
+                onChange={(value) => updateParallelism('max_model_steps', value)}
+              />
+              <ParallelismInput
+                label={t('settings.maxLlmSteps')}
+                description={t('settings.maxLlmStepsDescription')}
+                value={parallelism.max_llm_steps}
+                onChange={(value) => updateParallelism('max_llm_steps', value)}
+              />
+              <ParallelismInput
+                label={t('settings.maxRenderSteps')}
+                description={t('settings.maxRenderStepsDescription')}
+                value={parallelism.max_render_steps}
+                onChange={(value) => updateParallelism('max_render_steps', value)}
+              />
+              <ParallelismInput
+                label={t('settings.maxSameEngineSteps')}
+                description={t('settings.maxSameEngineStepsDescription')}
+                value={parallelism.max_same_engine_steps}
+                onChange={(value) => updateParallelism('max_same_engine_steps', value)}
+              />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </div>
   )
 }
