@@ -54,6 +54,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { useUpdater, type UpdaterStatus } from '@/components/Updater'
 import {
   getCatalog as getLlmCatalog,
@@ -1421,6 +1422,8 @@ function StoragePane({
   const [confirmOpen, setConfirmOpen] = useState(false)
   const multiFileExportOutput = usePreferencesStore((s) => s.multiFileExportOutput)
   const setMultiFileExportOutput = usePreferencesStore((s) => s.setMultiFileExportOutput)
+  const allowLegacyCuda = usePreferencesStore((s) => s.allowLegacyCuda)
+  const setAllowLegacyCuda = usePreferencesStore((s) => s.setAllowLegacyCuda)
 
   return (
     <>
@@ -1442,6 +1445,23 @@ function StoragePane({
           <p className='text-xs leading-relaxed text-muted-foreground'>
             {t('settings.exportOutputDescription')}
           </p>
+        </div>
+
+        <div className='flex items-start justify-between gap-4 rounded-lg border border-border bg-card px-3 py-3'>
+          <div className='space-y-1'>
+            <Label htmlFor='allow-legacy-cuda' className='text-xs'>
+              {t('settings.allowLegacyCuda')}
+            </Label>
+            <p className='text-xs leading-relaxed text-muted-foreground'>
+              {t('settings.allowLegacyCudaDescription')}
+            </p>
+          </div>
+          <Switch
+            id='allow-legacy-cuda'
+            checked={allowLegacyCuda}
+            onCheckedChange={setAllowLegacyCuda}
+            aria-label={t('settings.allowLegacyCuda')}
+          />
         </div>
 
         <div className='space-y-1.5'>

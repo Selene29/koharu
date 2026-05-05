@@ -81,7 +81,9 @@ export const getGetConfigResponseDataConfigMock = (overrideResponse: Partial<Dat
 
 export const getGetConfigResponseHttpConfigMock = (overrideResponse: Partial<HttpConfig> = {}): HttpConfig => ({...{connect_timeout: faker.number.int({min: 0}), max_retries: faker.number.int({min: 0}), read_timeout: faker.number.int({min: 0})}, ...overrideResponse});
 
-export const getGetConfigResponsePipelineParallelismConfigMock = (overrideResponse: Partial<PipelineParallelismConfig> = {}): PipelineParallelismConfig => ({...{max_active_steps: faker.number.int({min: 0}), max_llm_steps: faker.number.int({min: 0}), max_model_steps: faker.number.int({min: 0}), max_pages_in_flight: faker.number.int({min: 0}), max_render_steps: faker.number.int({min: 0}), max_same_engine_steps: faker.number.int({min: 0})}, ...overrideResponse});
+export const getGetConfigResponsePipelineParallelismConfigMock = (overrideResponse: Partial<PipelineParallelismConfig> = {}): PipelineParallelismConfig => ({...{engine_limits: {
+        [faker.string.alphanumeric(5)]: faker.number.int({min: 0})
+      }, max_active_steps: faker.number.int({min: 0}), max_llm_steps: faker.number.int({min: 0}), max_model_steps: faker.number.int({min: 0}), max_pages_in_flight: faker.number.int({min: 0}), max_render_steps: faker.number.int({min: 0}), max_same_engine_steps: faker.number.int({min: 0})}, ...overrideResponse});
 
 export const getGetConfigResponsePipelineConfigMock = (overrideResponse: Partial<PipelineConfig> = {}): PipelineConfig => ({...{bubble_segmenter: faker.string.alpha({length: {min: 10, max: 20}}), detector: faker.string.alpha({length: {min: 10, max: 20}}), font_detector: faker.string.alpha({length: {min: 10, max: 20}}), inpainter: faker.string.alpha({length: {min: 10, max: 20}}), ocr: faker.string.alpha({length: {min: 10, max: 20}}), parallelism: faker.helpers.arrayElement([{...getGetConfigResponsePipelineParallelismConfigMock()},]), renderer: faker.string.alpha({length: {min: 10, max: 20}}), segmenter: faker.string.alpha({length: {min: 10, max: 20}}), translator: faker.string.alpha({length: {min: 10, max: 20}})}, ...overrideResponse});
 
@@ -91,7 +93,9 @@ export const getPatchConfigResponseDataConfigMock = (overrideResponse: Partial<D
 
 export const getPatchConfigResponseHttpConfigMock = (overrideResponse: Partial<HttpConfig> = {}): HttpConfig => ({...{connect_timeout: faker.number.int({min: 0}), max_retries: faker.number.int({min: 0}), read_timeout: faker.number.int({min: 0})}, ...overrideResponse});
 
-export const getPatchConfigResponsePipelineParallelismConfigMock = (overrideResponse: Partial<PipelineParallelismConfig> = {}): PipelineParallelismConfig => ({...{max_active_steps: faker.number.int({min: 0}), max_llm_steps: faker.number.int({min: 0}), max_model_steps: faker.number.int({min: 0}), max_pages_in_flight: faker.number.int({min: 0}), max_render_steps: faker.number.int({min: 0}), max_same_engine_steps: faker.number.int({min: 0})}, ...overrideResponse});
+export const getPatchConfigResponsePipelineParallelismConfigMock = (overrideResponse: Partial<PipelineParallelismConfig> = {}): PipelineParallelismConfig => ({...{engine_limits: {
+        [faker.string.alphanumeric(5)]: faker.number.int({min: 0})
+      }, max_active_steps: faker.number.int({min: 0}), max_llm_steps: faker.number.int({min: 0}), max_model_steps: faker.number.int({min: 0}), max_pages_in_flight: faker.number.int({min: 0}), max_render_steps: faker.number.int({min: 0}), max_same_engine_steps: faker.number.int({min: 0})}, ...overrideResponse});
 
 export const getPatchConfigResponsePipelineConfigMock = (overrideResponse: Partial<PipelineConfig> = {}): PipelineConfig => ({...{bubble_segmenter: faker.string.alpha({length: {min: 10, max: 20}}), detector: faker.string.alpha({length: {min: 10, max: 20}}), font_detector: faker.string.alpha({length: {min: 10, max: 20}}), inpainter: faker.string.alpha({length: {min: 10, max: 20}}), ocr: faker.string.alpha({length: {min: 10, max: 20}}), parallelism: faker.helpers.arrayElement([{...getPatchConfigResponsePipelineParallelismConfigMock()},]), renderer: faker.string.alpha({length: {min: 10, max: 20}}), segmenter: faker.string.alpha({length: {min: 10, max: 20}}), translator: faker.string.alpha({length: {min: 10, max: 20}})}, ...overrideResponse});
 

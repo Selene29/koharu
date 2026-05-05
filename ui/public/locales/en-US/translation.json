@@ -410,6 +410,8 @@
     "exportOutputDescription": "Rendered, inpainted, and PSD exports with multiple pages can save individual files into a folder or save a zip archive.",
     "exportOutputFolder": "Folder",
     "exportOutputZip": "Zip file",
+    "allowLegacyCuda": "Experimental Legacy CUDA",
+    "allowLegacyCudaDescription": "Try CUDA on pre-Ampere GPUs such as GTX 16xx or RTX 20xx using F16 instead of BF16. Some models may fail or run out of VRAM.",
     "dataPathApply": "Apply & Restart",
     "dataPathApplying": "Applying...",
     "dataPathDesktopOnly": "Runtime settings are only available in the desktop app.",

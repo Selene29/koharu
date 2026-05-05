@@ -2,6 +2,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use libloading::Library;
 use serde::Deserialize;
 use std::fmt;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::Runtime;
 use crate::archive::{self, ArchiveKind, ExtractPolicy};
@@ -12,9 +13,12 @@ const CUDA_SUCCESS: i32 = 0;
 const CUDA_13_0_DRIVER_VERSION: i32 = 13000;
 const CUDA_13_1_DRIVER_VERSION: i32 = 13010;
 const CUDA_EXTRACT_REVISION: u32 = 2;
+const LEGACY_CUDA_ENV: &str = "KOHARU_ALLOW_LEGACY_CUDA";
 const CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR: i32 = 75;
 const CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR: i32 = 76;
 const MIN_COMPUTE_CAPABILITY: (i32, i32) = (8, 0); // Ampere (RTX 30xx) and above
+const LEGACY_MIN_COMPUTE_CAPABILITY: (i32, i32) = (7, 5); // Turing GTX 16xx / RTX 20xx
+static LEGACY_CUDA_OVERRIDE: AtomicBool = AtomicBool::new(false);
 
 type CuInit = unsafe extern "C" fn(flags: u32) -> i32;
 type CuDriverGetVersion = unsafe extern "C" fn(driver_version: *mut i32) -> i32;
@@ -245,17 +249,29 @@ pub fn check_cuda_driver_support() -> bool {
         }
     }
 
-    // Check GPU compute capability (need >= 8.0 / Ampere)
+    // Check GPU compute capability. Pre-Ampere CUDA is experimental because
+    // Koharu's normal CUDA model path uses BF16 on Ampere+.
     match compute_capability() {
         Ok((major, minor)) if (major, minor) >= MIN_COMPUTE_CAPABILITY => {
             tracing::info!("GPU compute capability: {major}.{minor}");
             true
         }
+        Ok((major, minor))
+            if legacy_cuda_enabled() && (major, minor) >= LEGACY_MIN_COMPUTE_CAPABILITY =>
+        {
+            tracing::warn!(
+                "GPU compute capability {major}.{minor} is below the normal minimum \
+                 required {}.{}; enabling experimental legacy CUDA because {LEGACY_CUDA_ENV}=1.",
+                MIN_COMPUTE_CAPABILITY.0,
+                MIN_COMPUTE_CAPABILITY.1,
+            );
+            true
+        }
         Ok((major, minor)) => {
             tracing::warn!(
                 "GPU compute capability {major}.{minor} is below the minimum \
-                 required {}.{}; falling back to CPU. An Ampere (RTX 30xx) or \
-                 newer GPU is required for GPU acceleration.",
+                 required {}.{}; falling back to CPU. Set {LEGACY_CUDA_ENV}=1 to \
+                 try experimental F16 CUDA on Turing-class GPUs.",
                 MIN_COMPUTE_CAPABILITY.0,
                 MIN_COMPUTE_CAPABILITY.1,
             );
@@ -266,6 +282,25 @@ pub fn check_cuda_driver_support() -> bool {
             false
         }
     }
+}
+
+pub fn legacy_cuda_enabled() -> bool {
+    LEGACY_CUDA_OVERRIDE.load(Ordering::Relaxed) || env_flag_enabled(LEGACY_CUDA_ENV)
+}
+
+pub fn set_legacy_cuda_override(enabled: bool) {
+    LEGACY_CUDA_OVERRIDE.store(enabled, Ordering::Relaxed);
+}
+
+fn env_flag_enabled(name: &str) -> bool {
+    std::env::var(name)
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(false)
 }
 
 pub(crate) fn package_enabled(runtime: &Runtime) -> bool {

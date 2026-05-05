@@ -85,6 +85,7 @@ export function useMaskDrawing({
         try {
           const config = await getConfig()
           const inpainter = config.pipeline?.inpainter || 'lama-manga'
+          const allowLegacyCuda = usePreferencesStore.getState().allowLegacyCuda
 
           const params = new URLSearchParams({
             pipeline: inpainter,
@@ -92,6 +93,7 @@ export function useMaskDrawing({
             y: region.y.toString(),
             width: region.width.toString(),
             height: region.height.toString(),
+            allowLegacyCuda: allowLegacyCuda ? 'true' : 'false',
           })
 
           const res = await fetch(`/api/v1/pages/${page.id}/masks/segment?${params}`, {

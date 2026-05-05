@@ -11,7 +11,7 @@ mod zluda;
 
 pub use cuda::{
     CudaDriverVersion, check_cuda_driver_support, compute_capability,
-    driver_version as nvidia_driver_version,
+    driver_version as nvidia_driver_version, legacy_cuda_enabled, set_legacy_cuda_override,
 };
 pub use hf_hub;
 pub use inventory;

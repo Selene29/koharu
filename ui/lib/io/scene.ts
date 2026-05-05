@@ -129,8 +129,13 @@ async function runAutoRender(pageId: string): Promise<void> {
     const cfg = await getConfig()
     const renderer = cfg.pipeline?.renderer
     if (!renderer) return
-    const defaultFont = usePreferencesStore.getState().defaultFont
-    await startPipeline({ steps: [renderer], pages: [pageId], defaultFont })
+    const prefs = usePreferencesStore.getState()
+    await startPipeline({
+      steps: [renderer],
+      pages: [pageId],
+      defaultFont: prefs.defaultFont,
+      allowLegacyCuda: prefs.allowLegacyCuda,
+    })
   } catch (err) {
     // Auto-render failures shouldn't disturb the editing flow; users can
     // always run Render manually from the toolbar / menu.

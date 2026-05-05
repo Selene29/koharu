@@ -229,6 +229,7 @@ async fn run() -> Result<()> {
             text_node_ids: None,
             reading_order: None,
             region: None,
+            allow_legacy_cuda: false,
         },
         parallelism: app.config.load().pipeline.parallelism.clone(),
     };

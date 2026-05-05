@@ -498,7 +498,7 @@ impl Drop for CudaTemporaryMemoryCleanup<'_> {
 
 fn transformer_dtype(device: &Device) -> DType {
     if device.is_cuda() {
-        return DType::BF16;
+        return crate::ops::cuda_model_dtype();
     }
 
     DType::F32
@@ -506,7 +506,7 @@ fn transformer_dtype(device: &Device) -> DType {
 
 fn vae_dtype(device: &Device) -> DType {
     if device.is_cuda() {
-        return DType::BF16;
+        return crate::ops::cuda_model_dtype();
     }
 
     DType::F32

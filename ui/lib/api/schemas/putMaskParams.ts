@@ -27,4 +27,8 @@ width?: number | null;
  * @nullable
  */
 height?: number | null;
+/**
+ * Experimental: allow ML CUDA on pre-Ampere GPUs.
+ */
+allowLegacyCuda?: boolean;
 };

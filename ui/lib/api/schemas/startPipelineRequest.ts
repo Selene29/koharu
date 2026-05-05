@@ -9,6 +9,8 @@ import type { ReadingOrder } from './readingOrder';
 import type { Region } from './region';
 
 export interface StartPipelineRequest {
+  /** Experimental: allow ML CUDA on pre-Ampere GPUs. */
+  allowLegacyCuda?: boolean;
   /** @nullable */
   defaultFont?: string | null;
   /**

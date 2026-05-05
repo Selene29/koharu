@@ -232,11 +232,7 @@ impl PaddleOcrVl {
 
     fn load_from_files(files: ModelFiles, cpu: bool) -> Result<Self> {
         let device = device(cpu)?;
-        let dtype = if device.is_cuda() {
-            DType::BF16
-        } else {
-            DType::F32
-        };
+        let dtype = loading::model_dtype(&device);
         let config: PaddleOcrVlConfig =
             loading::read_json(&files.config).context("failed to parse model config")?;
         let preprocessor: PaddleOcrVlPreprocessorConfig =

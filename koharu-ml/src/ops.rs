@@ -3,11 +3,25 @@ use candle_nn::{Conv1d, Conv1dConfig, Conv2d, Conv2dConfig, VarBuilder};
 
 pub(crate) fn model_dtype(device: &Device) -> DType {
     if device.is_cuda() && !koharu_runtime::zluda_active() {
-        DType::BF16
+        cuda_model_dtype()
     } else {
         // ZLUDA v6-preview.65 rejects Candle BF16 PTX instructions such as fma.rn.bf16.
         DType::F32
     }
+}
+
+pub(crate) fn cuda_model_dtype() -> DType {
+    if cuda_supports_bf16() {
+        DType::BF16
+    } else {
+        DType::F16
+    }
+}
+
+fn cuda_supports_bf16() -> bool {
+    koharu_runtime::compute_capability()
+        .map(|capability| capability >= (8, 0))
+        .unwrap_or(false)
 }
 
 pub(crate) fn conv1d_new(

@@ -26,8 +26,6 @@ use candle_core::utils::{cuda_is_available, metal_is_available};
 
 pub use candle_core::Device;
 
-static GPU_SUPPORTED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComputeDeviceOverview {
     pub selected_device: String,
@@ -39,9 +37,7 @@ pub struct ComputeDeviceOverview {
 pub fn device(cpu: bool) -> Result<Device> {
     if cpu {
         Ok(Device::Cpu)
-    } else if cuda_is_available()
-        && *GPU_SUPPORTED.get_or_init(koharu_runtime::check_cuda_driver_support)
-    {
+    } else if cuda_is_available() && koharu_runtime::check_cuda_driver_support() {
         Ok(Device::new_cuda(0)?)
     } else if metal_is_available() {
         Ok(Device::new_metal(0)?)
@@ -62,10 +58,16 @@ pub fn compute_device_overview(cpu: bool) -> ComputeDeviceOverview {
     let cuda_compute = koharu_runtime::compute_capability()
         .map(|(major, minor)| (major, minor))
         .map_err(|err| format!("{err:#}"));
-    let selected = match device(cpu) {
-        Ok(device) => device_label(&device).to_string(),
+    let selected_probe = device(cpu);
+    let selected = match &selected_probe {
+        Ok(device) => device_label(device).to_string(),
         Err(err) => format!("probe failed: {err:#}"),
     };
+    let dtype = selected_probe
+        .as_ref()
+        .map(|device| loading::model_dtype(device))
+        .map(|dtype| format!("{dtype:?}"))
+        .unwrap_or_else(|err| format!("unknown: {err:#}"));
     let fallback_reason = ml_fallback_reason(
         cpu,
         &selected,
@@ -94,7 +96,7 @@ pub fn compute_device_overview(cpu: bool) -> ComputeDeviceOverview {
         });
 
     let detail = format!(
-        "candle cuda runtime={cuda}, nvidia driver CUDA={driver}, GPU compute capability={gpu_capability}, metal={metal}{}{}{}",
+        "candle cuda runtime={cuda}, nvidia driver CUDA={driver}, GPU compute capability={gpu_capability}, metal={metal}, ML dtype={dtype}{}{}{}",
         cuda_driver
             .err()
             .map(|err| format!("; cuda driver error: {err}"))
@@ -140,7 +142,7 @@ fn ml_fallback_reason(
     if cuda_available {
         return match cuda_compute {
             Ok((major, minor)) if (*major, *minor) < (8, 0) => Some(format!(
-                "GPU compute capability {major}.{minor} is below required 8.0 for ML CUDA"
+                "GPU compute capability {major}.{minor} is below required 8.0 for default ML CUDA; set KOHARU_ALLOW_LEGACY_CUDA=1 to try experimental F16 CUDA"
             )),
             Ok((major, minor)) => Some(format!(
                 "GPU compute capability {major}.{minor} was available but ML CUDA did not initialize"
@@ -169,6 +171,7 @@ fn device_label(device: &Device) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use candle_core::{DType, Tensor};
 
     #[test]
     fn compute_device_overview_reports_cpu_override() {
@@ -190,7 +193,30 @@ mod tests {
 
         assert_eq!(
             reason.as_deref(),
-            Some("GPU compute capability 7.5 is below required 8.0 for ML CUDA")
+            Some(
+                "GPU compute capability 7.5 is below required 8.0 for default ML CUDA; set KOHARU_ALLOW_LEGACY_CUDA=1 to try experimental F16 CUDA"
+            )
         );
+    }
+
+    #[test]
+    fn legacy_cuda_smoke_test_when_enabled() -> Result<()> {
+        if !koharu_runtime::legacy_cuda_enabled() {
+            return Ok(());
+        }
+
+        assert!(
+            cuda_is_available(),
+            "KOHARU_ALLOW_LEGACY_CUDA=1 was set, but this build cannot initialize Candle CUDA"
+        );
+        let device = device(false)?;
+        assert!(device.is_cuda());
+        assert_eq!(loading::model_dtype(&device), DType::F16);
+
+        let a = Tensor::ones((2, 2), DType::F16, &device)?;
+        let b = (&a + &a)?.to_dtype(DType::F32)?.to_device(&Device::Cpu)?;
+
+        assert_eq!(b.to_vec2::<f32>()?, vec![vec![2.0, 2.0], vec![2.0, 2.0]]);
+        Ok(())
     }
 }

@@ -4,9 +4,10 @@
  * OpenAPI spec version: 0.0.1
  */
 
-export type ExportOutput = (typeof ExportOutput)[keyof typeof ExportOutput]
+export type ExportOutput = typeof ExportOutput[keyof typeof ExportOutput];
+
 
 export const ExportOutput = {
   folder: 'folder',
   zip: 'zip',
-} as const
+} as const;

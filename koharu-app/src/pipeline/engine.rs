@@ -22,7 +22,7 @@ use std::sync::atomic::AtomicBool;
 use anyhow::{Result, bail};
 use async_trait::async_trait;
 use koharu_core::{NodeId, Op, PageId, ReadingOrder, Region, Scene};
-use koharu_runtime::RuntimeManager;
+use koharu_runtime::{RuntimeManager, legacy_cuda_enabled};
 use parking_lot::RwLock;
 use petgraph::algo::toposort;
 use petgraph::graph::DiGraph;
@@ -63,6 +63,9 @@ pub struct PipelineRunOptions {
     /// and process just that one block. Other engines ignore it.
     pub region: Option<Region>,
     pub reading_order: Option<ReadingOrder>,
+    /// Experimental: allow CUDA on pre-Ampere GPUs. The ML layer will use
+    /// legacy-safe dtypes, but individual models may still fail or run out of VRAM.
+    pub allow_legacy_cuda: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -116,9 +119,26 @@ inventory::collect!(EngineInfo);
 // Registry — lazy load + cache engine instances
 // ---------------------------------------------------------------------------
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct EngineCacheKey {
+    id: &'static str,
+    cpu: bool,
+    legacy_cuda: bool,
+}
+
+impl EngineCacheKey {
+    fn new(id: &'static str, cpu: bool) -> Self {
+        Self {
+            id,
+            cpu,
+            legacy_cuda: legacy_cuda_enabled(),
+        }
+    }
+}
+
 pub struct Registry {
-    engines: RwLock<HashMap<&'static str, Arc<dyn Engine>>>,
-    load_locks: RwLock<HashMap<&'static str, Arc<tokio::sync::Mutex<()>>>>,
+    engines: RwLock<HashMap<EngineCacheKey, Arc<dyn Engine>>>,
+    load_locks: RwLock<HashMap<EngineCacheKey, Arc<tokio::sync::Mutex<()>>>>,
 }
 
 impl Default for Registry {
@@ -143,29 +163,30 @@ impl Registry {
         cpu: bool,
     ) -> Result<Arc<dyn Engine>> {
         let info = Self::find(id)?;
-        if let Some(engine) = self.engines.read().get(info.id).cloned() {
+        let cache_key = EngineCacheKey::new(info.id, cpu);
+        if let Some(engine) = self.engines.read().get(&cache_key).cloned() {
             return Ok(engine);
         }
         let load_lock = {
-            if let Some(lock) = self.load_locks.read().get(info.id).cloned() {
+            if let Some(lock) = self.load_locks.read().get(&cache_key).cloned() {
                 lock
             } else {
                 let mut locks = self.load_locks.write();
                 locks
-                    .entry(info.id)
+                    .entry(cache_key)
                     .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
                     .clone()
             }
         };
         let _guard = load_lock.lock().await;
-        if let Some(engine) = self.engines.read().get(info.id).cloned() {
+        if let Some(engine) = self.engines.read().get(&cache_key).cloned() {
             return Ok(engine);
         }
         let loaded = async { (info.load)(runtime, cpu).await }
             .instrument(tracing::info_span!("engine_load", engine = id))
             .await?;
         let engine: Arc<dyn Engine> = Arc::from(loaded);
-        self.engines.write().insert(info.id, engine.clone());
+        self.engines.write().insert(cache_key, engine.clone());
         Ok(engine)
     }
 
@@ -178,7 +199,7 @@ impl Registry {
     pub fn evict(&self, ids: &[&str]) {
         let mut engines = self.engines.write();
         for id in ids {
-            engines.remove(*id);
+            engines.retain(|key, _| key.id != *id);
         }
     }
 

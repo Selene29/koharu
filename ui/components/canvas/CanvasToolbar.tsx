@@ -145,6 +145,7 @@ function WorkflowButtons() {
       systemPrompt: prefs.customSystemPrompt,
       defaultFont: prefs.defaultFont,
       readingOrder: editor.readingOrder === 'custom' ? undefined : editor.readingOrder,
+      allowLegacyCuda: prefs.allowLegacyCuda,
     })
   }
 

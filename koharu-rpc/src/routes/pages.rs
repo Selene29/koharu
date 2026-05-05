@@ -39,6 +39,9 @@ pub struct PutMaskParams {
     pub y: Option<f32>,
     pub width: Option<f32>,
     pub height: Option<f32>,
+    /// Experimental: allow ML CUDA on pre-Ampere GPUs.
+    #[serde(default)]
+    pub allow_legacy_cuda: bool,
 }
 
 pub fn router() -> OpenApiRouter<AppState> {
@@ -676,8 +679,10 @@ async fn put_mask(
         let cancel = Arc::new(AtomicBool::new(false));
         let options = PipelineRunOptions {
             region: Some(region),
+            allow_legacy_cuda: params.allow_legacy_cuda,
             ..Default::default()
         };
+        koharu_runtime::set_legacy_cuda_override(params.allow_legacy_cuda);
         let ctx = EngineCtx {
             scene: &scene,
             page: page_id,

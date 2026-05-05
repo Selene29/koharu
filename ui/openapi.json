@@ -798,6 +798,15 @@
               ],
               "format": "float"
             }
+          },
+          {
+            "name": "allowLegacyCuda",
+            "in": "query",
+            "description": "Experimental: allow ML CUDA on pre-Ampere GPUs.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -3819,6 +3828,10 @@
           "steps"
         ],
         "properties": {
+          "allowLegacyCuda": {
+            "type": "boolean",
+            "description": "Experimental: allow ML CUDA on pre-Ampere GPUs."
+          },
           "defaultFont": {
             "type": [
               "string",

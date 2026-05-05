@@ -50,6 +50,9 @@ pub struct StartPipelineRequest {
     pub default_font: Option<String>,
     #[serde(default)]
     pub reading_order: Option<ReadingOrder>,
+    /// Experimental: allow ML CUDA on pre-Ampere GPUs.
+    #[serde(default)]
+    pub allow_legacy_cuda: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
@@ -88,6 +91,7 @@ async fn start_pipeline(
             text_node_ids: req.text_node_ids,
             region: req.region,
             reading_order: req.reading_order,
+            allow_legacy_cuda: req.allow_legacy_cuda,
         },
         parallelism: app.config.load().pipeline.parallelism.clone(),
     };

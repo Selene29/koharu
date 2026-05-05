@@ -96,13 +96,19 @@ export function MenuBar() {
       systemPrompt: prefs.customSystemPrompt,
       defaultFont: prefs.defaultFont,
       readingOrder: editor.readingOrder === 'custom' ? undefined : editor.readingOrder,
+      allowLegacyCuda: prefs.allowLegacyCuda,
     })
   }
 
   const runInpaint = async (pageId: string) => {
     const cfg = await getConfig()
     if (!cfg.pipeline?.inpainter) return
-    await startPipeline({ steps: [cfg.pipeline.inpainter], pages: [pageId] })
+    const prefs = usePreferencesStore.getState()
+    await startPipeline({
+      steps: [cfg.pipeline.inpainter],
+      pages: [pageId],
+      allowLegacyCuda: prefs.allowLegacyCuda,
+    })
   }
 
   const exportItems: MenuItem[] = [

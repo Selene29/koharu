@@ -420,6 +420,7 @@ pub async fn run(
     let mut completed: u64 = 0;
     let mut warning_count: usize = 0;
     let limits = ActiveLimits::from_config(&spec.parallelism);
+    koharu_runtime::set_legacy_cuda_override(spec.options.allow_legacy_cuda);
 
     let emit_log = |level: JobLogLevel,
                     page_index: Option<usize>,
@@ -476,8 +477,9 @@ pub async fn run(
         None,
         None,
         format!(
-            "Compute overview: runtime-wants-gpu={}, {}; {}",
+            "Compute overview: runtime-wants-gpu={}, legacy-cuda={}, {}; {}",
             runtime.wants_gpu(),
+            spec.options.allow_legacy_cuda,
             ml_overview.summary,
             llama_overview.summary
         ),

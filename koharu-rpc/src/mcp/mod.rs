@@ -192,6 +192,7 @@ impl KoharuServer {
                 text_node_ids: input.text_node_ids,
                 reading_order: input.reading_order,
                 region: None,
+                allow_legacy_cuda: false,
             },
             parallelism: app.config.load().pipeline.parallelism.clone(),
         };
