@@ -766,11 +766,11 @@ fn mark_page_completed_if_ready(
                 None,
             );
         } else {
-            let has_text = page
-                .nodes
-                .values()
-                .any(|n| matches!(n.kind, koharu_core::NodeKind::Text(_)));
-            if !has_text {
+            let has_processable_text = page.nodes.values().any(|node| match &node.kind {
+                koharu_core::NodeKind::Text(text) => text_has_content(text),
+                _ => false,
+            });
+            if !has_processable_text {
                 drop(scene_guard);
                 let _ = session.apply(Op::UpdatePage {
                     id: page_id,
@@ -787,49 +787,45 @@ fn mark_page_completed_if_ready(
                     "marked completed (no text on page)".to_string(),
                     None,
                 );
+            } else if page_completion_satisfied(page) {
+                drop(scene_guard);
+                let _ = session.apply(Op::UpdatePage {
+                    id: page_id,
+                    patch: koharu_core::PagePatch {
+                        completed: Some(true),
+                        ..Default::default()
+                    },
+                    prev: koharu_core::PagePatch::default(),
+                });
+                emit_log(
+                    JobLogLevel::Info,
+                    Some(page_index),
+                    None,
+                    "marked completed".to_string(),
+                    None,
+                );
             } else {
-                let final_ready = Artifact::FinalRender.ready(page);
-                let sprites_ready = Artifact::RenderedSprites.ready(page);
-                if final_ready && sprites_ready {
-                    drop(scene_guard);
-                    let _ = session.apply(Op::UpdatePage {
-                        id: page_id,
-                        patch: koharu_core::PagePatch {
-                            completed: Some(true),
-                            ..Default::default()
-                        },
-                        prev: koharu_core::PagePatch::default(),
-                    });
-                    emit_log(
-                        JobLogLevel::Info,
-                        Some(page_index),
-                        None,
-                        "marked completed".to_string(),
-                        None,
-                    );
-                } else {
-                    let mut missing = Vec::new();
-                    for a in [
-                        Artifact::TextBoxes,
-                        Artifact::OcrText,
-                        Artifact::FontPredictions,
-                        Artifact::Translations,
-                        Artifact::Inpainted,
-                        Artifact::RenderedSprites,
-                        Artifact::FinalRender,
-                    ] {
-                        if !a.ready(page) {
-                            missing.push(a.label());
-                        }
+                let mut missing = Vec::new();
+                for a in [
+                    Artifact::TextBoxes,
+                    Artifact::OcrText,
+                    Artifact::FontPredictions,
+                    Artifact::Translations,
+                    Artifact::Inpainted,
+                    Artifact::RenderedSprites,
+                    Artifact::FinalRender,
+                ] {
+                    if !a.ready(page) {
+                        missing.push(a.label());
                     }
-                    emit_log(
-                        JobLogLevel::Warn,
-                        Some(page_index),
-                        None,
-                        format!("not marked completed; missing: {}", missing.join(", ")),
-                        None,
-                    );
                 }
+                emit_log(
+                    JobLogLevel::Warn,
+                    Some(page_index),
+                    None,
+                    format!("not marked completed; missing: {}", missing.join(", ")),
+                    None,
+                );
             }
         }
     } else {
@@ -841,6 +837,30 @@ fn mark_page_completed_if_ready(
             Some(format!("total pages: {total_pages}")),
         );
     }
+}
+
+fn page_completion_satisfied(page: &koharu_core::Page) -> bool {
+    let has_processable_text = page.nodes.values().any(|node| match &node.kind {
+        koharu_core::NodeKind::Text(text) => text_has_content(text),
+        _ => false,
+    });
+    if !has_processable_text {
+        return true;
+    }
+
+    Artifact::Translations.ready(page)
+        && Artifact::FinalRender.ready(page)
+        && Artifact::RenderedSprites.ready(page)
+}
+
+fn text_has_content(text: &koharu_core::TextData) -> bool {
+    text.text.as_ref().is_some_and(|s| !s.trim().is_empty()) || text_has_translation(text)
+}
+
+fn text_has_translation(text: &koharu_core::TextData) -> bool {
+    text.translation
+        .as_ref()
+        .is_some_and(|s| !s.trim().is_empty())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -925,6 +945,9 @@ pub fn catalog() -> EngineCatalog {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use koharu_core::{
+        BlobRef, ImageData, ImageRole, Node, NodeId, NodeKind, Page, TextData, Transform,
+    };
 
     #[test]
     fn catalog_includes_anime_text_detector() {
@@ -935,6 +958,70 @@ mod tests {
                 && engine.name == "Anime Text YOLO (N)"
                 && engine.produces.iter().map(String::as_str).eq(["TextBoxes"])
         }));
+    }
+
+    #[test]
+    fn completion_treats_blank_text_nodes_as_textless() {
+        let mut page = Page::new("page", 100, 100);
+        page.nodes.insert(
+            NodeId::new(),
+            text_node(TextData {
+                text: Some("   ".to_string()),
+                translation: Some(String::new()),
+                ..Default::default()
+            }),
+        );
+
+        assert!(page_completion_satisfied(&page));
+    }
+
+    #[test]
+    fn completion_requires_translation_before_rendered_page_counts_done() {
+        let mut page = Page::new("page", 100, 100);
+        page.nodes.insert(
+            NodeId::new(),
+            text_node(TextData {
+                text: Some("source".to_string()),
+                translation: Some(String::new()),
+                ..Default::default()
+            }),
+        );
+        add_rendered_image(&mut page);
+
+        assert!(!page_completion_satisfied(&page));
+    }
+
+    #[test]
+    fn completion_requires_sprite_for_nonblank_translation() {
+        let mut page = Page::new("page", 100, 100);
+        page.nodes.insert(
+            NodeId::new(),
+            text_node(TextData {
+                text: Some("source".to_string()),
+                translation: Some("translation".to_string()),
+                ..Default::default()
+            }),
+        );
+        add_rendered_image(&mut page);
+
+        assert!(!page_completion_satisfied(&page));
+    }
+
+    #[test]
+    fn completion_accepts_rendered_translated_page() {
+        let mut page = Page::new("page", 100, 100);
+        page.nodes.insert(
+            NodeId::new(),
+            text_node(TextData {
+                text: Some("source".to_string()),
+                translation: Some("translation".to_string()),
+                sprite: Some(BlobRef::new("sprite")),
+                ..Default::default()
+            }),
+        );
+        add_rendered_image(&mut page);
+
+        assert!(page_completion_satisfied(&page));
     }
 
     static MODEL_INFO: EngineInfo = EngineInfo {
@@ -998,5 +1085,34 @@ mod tests {
         assert!(running.can_start(&MODEL_INFO, &limits));
         running.started(&MODEL_INFO);
         assert!(!running.can_start(&MODEL_INFO, &limits));
+    }
+
+    fn text_node(data: TextData) -> Node {
+        Node {
+            id: NodeId::new(),
+            transform: Transform::default(),
+            visible: true,
+            kind: NodeKind::Text(data),
+        }
+    }
+
+    fn add_rendered_image(page: &mut Page) {
+        let id = NodeId::new();
+        page.nodes.insert(
+            id,
+            Node {
+                id,
+                transform: Transform::default(),
+                visible: true,
+                kind: NodeKind::Image(ImageData {
+                    role: ImageRole::Rendered,
+                    blob: BlobRef::new("rendered"),
+                    opacity: 1.0,
+                    natural_width: 100,
+                    natural_height: 100,
+                    name: None,
+                }),
+            },
+        );
     }
 }

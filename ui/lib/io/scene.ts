@@ -12,6 +12,7 @@ import {
   getGetCurrentLlmQueryKey,
   getGetSceneJsonQueryKey,
   importProject,
+  patchPage,
   patchConfig,
   putCurrentProject,
   redo,
@@ -26,6 +27,7 @@ import type {
   ExportProjectRequest,
   Op,
   OpenProjectRequest,
+  PagePatch,
   ProjectSummary,
   ReadingOrder,
   SceneSnapshot,
@@ -66,6 +68,13 @@ const enqueueHistoryMutation = (run: () => Promise<void>): Promise<void> => {
 export async function applyOp(op: Op): Promise<void> {
   await enqueueHistoryMutation(async () => {
     await applyCommand(op)
+    await invalidateScene()
+  })
+}
+
+export async function updatePage(id: string, patch: PagePatch): Promise<void> {
+  await enqueueHistoryMutation(async () => {
+    await patchPage(id, patch)
     await invalidateScene()
   })
 }
