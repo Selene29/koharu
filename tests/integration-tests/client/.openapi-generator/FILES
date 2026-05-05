@@ -39,6 +39,7 @@ docs/DownloadStatusOneOf3.md
 docs/EngineCatalog.md
 docs/EngineCatalogEntry.md
 docs/ExportFormat.md
+docs/ExportOutput.md
 docs/ExportProjectRequest.md
 docs/FontFaceInfo.md
 docs/FontPrediction.md
@@ -187,6 +188,7 @@ src/models/download_status_one_of_3.rs
 src/models/engine_catalog.rs
 src/models/engine_catalog_entry.rs
 src/models/export_format.rs
+src/models/export_output.rs
 src/models/export_project_request.rs
 src/models/font_face_info.rs
 src/models/font_prediction.rs

@@ -3,11 +3,8 @@
 /**
  * Cross-platform blob save.
  *
- * - **Tauri**: native save dialog (for single files) or folder dialog + unzip
- *   (for multi-file `application/zip` blobs). The server always returns a zip
- *   when a format produces multiple files; on Tauri we extract into the
- *   chosen folder so users get individual files, not a zip they have to
- *   unpack.
+ * - **Tauri**: native save dialog for single files and explicit zip saves, or
+ *   folder dialog + unzip for multi-file exports configured for folder output.
  *
  * - **Web**: `browser-fs-access` handles File System Access API + the legacy
  *   `<a download>` fallback. Zips are saved as-is (user unzips if desired).
@@ -17,7 +14,15 @@
 
 import { isTauri } from '@/lib/backend'
 
-export async function saveBlob(blob: Blob, defaultName: string): Promise<boolean> {
+type SaveBlobOptions = {
+  zipMode?: 'extract' | 'file'
+}
+
+export async function saveBlob(
+  blob: Blob,
+  defaultName: string,
+  options: SaveBlobOptions = {},
+): Promise<boolean> {
   // Zip detection must come from the actual content type — a single-file
   // export (PNG/PSD/khr) whose filename happens to end in `.zip` would
   // otherwise be fed to `unzipSync` and throw.
@@ -27,7 +32,7 @@ export async function saveBlob(blob: Blob, defaultName: string): Promise<boolean
     const { open, save } = await import('@tauri-apps/plugin-dialog')
     const { writeFile, mkdir } = await import('@tauri-apps/plugin-fs')
 
-    if (isZip) {
+    if (isZip && options.zipMode !== 'file') {
       const folder = await open({ directory: true, multiple: false })
       if (!folder || typeof folder !== 'string') return false
       const { unzipSync } = await import('fflate')

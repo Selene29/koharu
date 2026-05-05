@@ -180,11 +180,18 @@ async fn renderer_pipeline_creates_final_render_for_pages_without_text_blocks() 
         .post(format!("{}/projects/current/export", app.base_url))
         .json(&models::ExportProjectRequest {
             format: models::ExportFormat::Rendered,
+            output: Some(models::ExportOutput::Zip),
             pages: None,
         })
         .send()
         .await?
         .error_for_status()?;
+    assert_eq!(
+        res.headers()
+            .get("x-koharu-export-output")
+            .and_then(|value| value.to_str().ok()),
+        Some("zip")
+    );
     let body = res.bytes().await?;
     let mut archive = zip::ZipArchive::new(Cursor::new(body.to_vec()))?;
     assert_eq!(

@@ -185,9 +185,31 @@ async fn import_project(
 #[serde(rename_all = "camelCase")]
 pub struct ExportProjectRequest {
     pub format: ExportFormat,
+    /// Multi-file export output. Defaults to folder-save transport.
+    #[serde(default)]
+    pub output: ExportOutput,
     /// Optional subset of pages; defaults to every page.
     #[serde(default)]
     pub pages: Option<Vec<PageId>>,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ExportOutput {
+    /// Return a zip transport intended to be extracted into a selected folder.
+    #[default]
+    Folder,
+    /// Return a zip file intended to be saved as-is.
+    Zip,
+}
+
+impl ExportOutput {
+    fn as_str(self) -> &'static str {
+        match self {
+            ExportOutput::Folder => "folder",
+            ExportOutput::Zip => "zip",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, utoipa::ToSchema)]
@@ -236,7 +258,10 @@ async fn export_current_project(
         &job_id,
         format_label,
         JobLogLevel::Info,
-        format!("export started: format={format_label}"),
+        format!(
+            "export started: format={format_label}, output={}",
+            req.output.as_str()
+        ),
         None,
     );
 
@@ -335,10 +360,10 @@ async fn export_current_project(
                 &job_id,
                 format_label,
                 JobLogLevel::Info,
-                format!("packing {} PSD file(s) into zip", files.len()),
+                export_bundle_log_message(files.len(), "PSD", req.output),
                 None,
             );
-            Ok(files_to_response(files, &project_name, "psd")?)
+            Ok(files_to_response(files, &project_name, "psd", req.output)?)
         }
         ExportFormat::Rendered => {
             export_image_role(
@@ -349,6 +374,7 @@ async fn export_current_project(
                 &bus,
                 &job_id,
                 format_label,
+                req.output,
             )
             .await
         }
@@ -361,6 +387,7 @@ async fn export_current_project(
                 &bus,
                 &job_id,
                 format_label,
+                req.output,
             )
             .await
         }
@@ -397,6 +424,7 @@ async fn export_image_role(
     bus: &Arc<EventBus>,
     job_id: &str,
     format_label: &str,
+    output: ExportOutput,
 ) -> ApiResult<Response> {
     let export_pages = resolve_export_pages(session, pages)?;
     if export_pages.is_empty() {
@@ -495,10 +523,19 @@ async fn export_image_role(
         job_id,
         format_label,
         JobLogLevel::Info,
-        format!("packing {} PNG file(s) into zip", files.len()),
+        export_bundle_log_message(files.len(), "PNG", output),
         None,
     );
-    files_to_response(files, project_name, role_ext(role))
+    files_to_response(files, project_name, role_ext(role), output)
+}
+
+fn export_bundle_log_message(file_count: usize, kind: &str, output: ExportOutput) -> String {
+    match output {
+        ExportOutput::Folder => {
+            format!("preparing {file_count} {kind} file(s) for folder save")
+        }
+        ExportOutput::Zip => format!("packing {file_count} {kind} file(s) into zip"),
+    }
 }
 
 fn emit_export_log(
@@ -622,6 +659,7 @@ fn files_to_response(
     mut files: Vec<(String, Vec<u8>)>,
     project_name: &str,
     ext: &str,
+    output: ExportOutput,
 ) -> ApiResult<Response> {
     if files.len() == 1 {
         let (fname, bytes) = files.remove(0);
@@ -637,11 +675,11 @@ fn files_to_response(
     let zip_bytes = koharu_app::archive::zip_files_to_bytes(&files).map_err(ApiError::internal)?;
     let base = sanitize(project_name, "export");
     let filename = format!("{base}-{ext}.zip");
-    Ok(bytes_response_with_filename(
-        zip_bytes,
-        &filename,
-        "application/zip",
-    ))
+    let mut resp = bytes_response_with_filename(zip_bytes, &filename, "application/zip");
+    if let Ok(v) = HeaderValue::from_str(output.as_str()) {
+        resp.headers_mut().insert("x-koharu-export-output", v);
+    }
+    Ok(resp)
 }
 
 fn content_disposition_basename(path: &str) -> String {

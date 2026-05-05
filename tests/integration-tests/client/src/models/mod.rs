@@ -70,6 +70,8 @@ pub mod engine_catalog_entry;
 pub use self::engine_catalog_entry::EngineCatalogEntry;
 pub mod export_format;
 pub use self::export_format::ExportFormat;
+pub mod export_output;
+pub use self::export_output::ExportOutput;
 pub mod export_project_request;
 pub use self::export_project_request::ExportProjectRequest;
 pub mod font_face_info;

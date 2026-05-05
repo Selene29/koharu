@@ -85,7 +85,7 @@ import {
   isKeyBlocked,
   isModifierKey,
 } from '@/lib/shortcutUtils'
-import { usePreferencesStore } from '@/lib/stores/preferencesStore'
+import { usePreferencesStore, type MultiFileExportOutput } from '@/lib/stores/preferencesStore'
 
 // Dialog state models `AppConfig` (what `GET /config` returns — snake_case).
 // But `PATCH /config` expects a `ConfigPatch` with camelCase fields because
@@ -1419,10 +1419,31 @@ function StoragePane({
 }) {
   const { t } = useTranslation()
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const multiFileExportOutput = usePreferencesStore((s) => s.multiFileExportOutput)
+  const setMultiFileExportOutput = usePreferencesStore((s) => s.setMultiFileExportOutput)
 
   return (
     <>
       <Section title={t('settings.runtime')} description={t('settings.runtimeDescription')}>
+        <div className='space-y-1.5'>
+          <Label className='text-xs'>{t('settings.exportOutput')}</Label>
+          <Select
+            value={multiFileExportOutput}
+            onValueChange={(value) => setMultiFileExportOutput(value as MultiFileExportOutput)}
+          >
+            <SelectTrigger className='w-full'>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='folder'>{t('settings.exportOutputFolder')}</SelectItem>
+              <SelectItem value='zip'>{t('settings.exportOutputZip')}</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className='text-xs leading-relaxed text-muted-foreground'>
+            {t('settings.exportOutputDescription')}
+          </p>
+        </div>
+
         <div className='space-y-1.5'>
           <Label className='text-xs'>{t('settings.dataPath')}</Label>
           <Input type='text' value={dataPath} onChange={(e) => onPathChange(e.target.value)} />

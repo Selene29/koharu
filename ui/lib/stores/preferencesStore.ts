@@ -5,6 +5,8 @@ import { persist } from 'zustand/middleware'
 
 import { getPlatform } from '@/lib/shortcutUtils'
 
+export type MultiFileExportOutput = 'folder' | 'zip'
+
 type PreferencesState = {
   brushConfig: {
     size: number
@@ -17,6 +19,8 @@ type PreferencesState = {
   toggleFavoriteFont: (font: string) => void
   customSystemPrompt?: string
   setCustomSystemPrompt: (prompt?: string) => void
+  multiFileExportOutput: MultiFileExportOutput
+  setMultiFileExportOutput: (output: MultiFileExportOutput) => void
   codexImagePrompt?: string
   setCodexImagePrompt: (prompt?: string) => void
   codexImageModel?: string
@@ -57,6 +61,7 @@ const initialPreferences = {
   codexImagePrompt:
     'Translate all visible text to natural English, remove the original lettering, and redraw the page as a clean manga image while preserving the artwork, panel layout, speech bubbles, tone, and composition.',
   codexImageModel: 'gpt-5.5',
+  multiFileExportOutput: 'folder' as MultiFileExportOutput,
 }
 
 export const usePreferencesStore = create<PreferencesState>()(
@@ -78,6 +83,7 @@ export const usePreferencesStore = create<PreferencesState>()(
             : [...state.favoriteFonts, font],
         })),
       setCustomSystemPrompt: (prompt) => set({ customSystemPrompt: prompt }),
+      setMultiFileExportOutput: (output) => set({ multiFileExportOutput: output }),
       setCodexImagePrompt: (prompt) => set({ codexImagePrompt: prompt }),
       setCodexImageModel: (model) => set({ codexImageModel: model }),
       setShortcuts: (shortcuts) =>
@@ -97,7 +103,7 @@ export const usePreferencesStore = create<PreferencesState>()(
     }),
     {
       name: 'koharu-config',
-      version: 6,
+      version: 7,
       migrate: (persisted: any, version: number) => {
         if (version < 2 && persisted) {
           delete persisted.localLlm
@@ -129,6 +135,9 @@ export const usePreferencesStore = create<PreferencesState>()(
           persisted.codexImagePrompt ??= initialPreferences.codexImagePrompt
           persisted.codexImageModel ??= initialPreferences.codexImageModel
         }
+        if (version < 7 && persisted) {
+          persisted.multiFileExportOutput ??= initialPreferences.multiFileExportOutput
+        }
         return persisted
       },
       partialize: (state) => ({
@@ -136,6 +145,7 @@ export const usePreferencesStore = create<PreferencesState>()(
         defaultFont: state.defaultFont,
         favoriteFonts: state.favoriteFonts,
         customSystemPrompt: state.customSystemPrompt,
+        multiFileExportOutput: state.multiFileExportOutput,
         codexImagePrompt: state.codexImagePrompt,
         codexImageModel: state.codexImageModel,
         shortcuts: state.shortcuts,

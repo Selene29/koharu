@@ -15,6 +15,9 @@ use serde::{Deserialize, Serialize};
 pub struct ExportProjectRequest {
     #[serde(rename = "format")]
     pub format: models::ExportFormat,
+    /// Multi-file export output. Defaults to folder-save transport.
+    #[serde(rename = "output", skip_serializing_if = "Option::is_none")]
+    pub output: Option<models::ExportOutput>,
     /// Optional subset of pages; defaults to every page.
     #[serde(
         rename = "pages",
@@ -29,6 +32,7 @@ impl ExportProjectRequest {
     pub fn new(format: models::ExportFormat) -> ExportProjectRequest {
         ExportProjectRequest {
             format,
+            output: None,
             pages: None,
         }
     }

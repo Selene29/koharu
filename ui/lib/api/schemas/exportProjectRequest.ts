@@ -4,10 +4,13 @@
  * OpenAPI spec version: 0.0.1
  */
 import type { ExportFormat } from './exportFormat';
+import type { ExportOutput } from './exportOutput';
 import type { PageId } from './pageId';
 
 export interface ExportProjectRequest {
   format: ExportFormat;
+  /** Multi-file export output. Defaults to folder-save transport. */
+  output?: ExportOutput;
   /**
      * Optional subset of pages; defaults to every page.
      * @nullable

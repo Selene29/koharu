@@ -110,6 +110,7 @@ Class | Method | HTTP request | Description
  - [EngineCatalog](docs/EngineCatalog.md)
  - [EngineCatalogEntry](docs/EngineCatalogEntry.md)
  - [ExportFormat](docs/ExportFormat.md)
+ - [ExportOutput](docs/ExportOutput.md)
  - [ExportProjectRequest](docs/ExportProjectRequest.md)
  - [FontFaceInfo](docs/FontFaceInfo.md)
  - [FontPrediction](docs/FontPrediction.md)
@@ -224,6 +225,5 @@ cargo doc --open
 ```
 
 ## Author
-
 
 

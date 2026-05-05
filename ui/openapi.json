@@ -1834,6 +1834,13 @@
           "inpainted"
         ]
       },
+      "ExportOutput": {
+        "type": "string",
+        "enum": [
+          "folder",
+          "zip"
+        ]
+      },
       "ExportProjectRequest": {
         "type": "object",
         "required": [
@@ -1842,6 +1849,10 @@
         "properties": {
           "format": {
             "$ref": "#/components/schemas/ExportFormat"
+          },
+          "output": {
+            "$ref": "#/components/schemas/ExportOutput",
+            "description": "Multi-file export output. Defaults to folder-save transport."
           },
           "pages": {
             "type": [

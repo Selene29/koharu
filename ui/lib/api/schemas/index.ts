@@ -27,6 +27,7 @@ export * from './downloadStatus';
 export * from './engineCatalog';
 export * from './engineCatalogEntry';
 export * from './exportFormat';
+export * from './exportOutput';
 export * from './exportProjectRequest';
 export * from './fontFaceInfo';
 export * from './fontPrediction';

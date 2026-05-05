@@ -8,6 +8,7 @@ import { exportProject, uploadKhrArchive, uploadPages, uploadPagesByPaths } from
 import { queryClient } from '@/lib/queryClient'
 import { useActivityLogStore } from '@/lib/stores/activityLogStore'
 import { useEditorUiStore } from '@/lib/stores/editorUiStore'
+import { usePreferencesStore, type MultiFileExportOutput } from '@/lib/stores/preferencesStore'
 
 /**
  * Platform-neutral image import. Tauri passes disk paths to the backend;
@@ -51,6 +52,10 @@ const exportExtension: Record<'khr' | 'psd' | 'rendered' | 'inpainted', string> 
   inpainted: 'zip',
 }
 
+function isMultiFileExport(format: 'khr' | 'psd' | 'rendered' | 'inpainted', pages?: string[]) {
+  return format !== 'khr' && pages?.length !== 1
+}
+
 /** Sanitise an arbitrary project name for use as a filename stem. */
 function sanitiseBaseName(name: string | undefined | null): string {
   const cleaned = (name ?? '')
@@ -72,10 +77,18 @@ export async function exportCurrentProjectAs(
 ): Promise<void> {
   const log = useActivityLogStore.getState()
   const scope = pages?.length === 1 ? 'current page' : pages ? `${pages.length} pages` : 'all pages'
-  log.push('info', `Export ${format} (${scope}) — requesting from server`)
+  const output: MultiFileExportOutput | undefined = isMultiFileExport(format, pages)
+    ? usePreferencesStore.getState().multiFileExportOutput
+    : undefined
+  const outputLabel = isMultiFileExport(format, pages)
+    ? output === 'folder'
+      ? 'folder'
+      : 'zip'
+    : 'file'
+  log.push('info', `Export ${format} (${scope}) — requesting ${outputLabel} from server`)
 
   try {
-    const { blob, filename } = await exportProject({ format, pages })
+    const { blob, filename } = await exportProject({ format, ...(output ? { output } : {}), pages })
     log.push(
       'info',
       `Export ${format}: server returned ${(blob.size / 1024).toFixed(1)} KB`,
@@ -95,10 +108,21 @@ export async function exportCurrentProjectAs(
     // Fall back to our guess only if the header is missing/unparseable.
     const defaultName = filename ?? `${base}.${exportExtension[format]}`
 
-    log.push('info', `Export ${format}: opening save dialog (${defaultName})`)
-    const saved = await saveBlob(blob, defaultName)
+    if (output === 'folder' && blob.type === 'application/zip') {
+      log.push('info', `Export ${format}: opening folder dialog`)
+    } else {
+      log.push('info', `Export ${format}: opening save dialog (${defaultName})`)
+    }
+    const saved = await saveBlob(blob, defaultName, {
+      zipMode: output === 'folder' ? 'extract' : 'file',
+    })
     if (saved) {
-      log.push('info', `Export ${format}: saved as ${defaultName}`)
+      log.push(
+        'info',
+        output === 'folder' && blob.type === 'application/zip'
+          ? `Export ${format}: saved to selected folder`
+          : `Export ${format}: saved as ${defaultName}`,
+      )
     } else {
       log.push('info', `Export ${format}: cancelled by user`)
     }

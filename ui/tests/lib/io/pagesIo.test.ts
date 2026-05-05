@@ -27,6 +27,7 @@ vi.mock('@/lib/io/saveBlob', async () => {
 import { openImageFiles, openImageFolder, openKhrFile } from '@/lib/io/openFiles'
 import { exportCurrentProjectAs, importKhrFile, importPages } from '@/lib/io/pagesIo'
 import { saveBlob } from '@/lib/io/saveBlob'
+import { usePreferencesStore } from '@/lib/stores/preferencesStore'
 
 const asMock = <T extends (...args: never) => unknown>(fn: T) =>
   fn as unknown as ReturnType<typeof vi.fn>
@@ -37,6 +38,7 @@ beforeEach(() => {
     epoch: 0,
     scene: { pages: {}, project: {} as never },
   })
+  usePreferencesStore.getState().setMultiFileExportOutput('folder')
 })
 
 function isInvalidated(key: readonly unknown[]): boolean {
@@ -197,10 +199,29 @@ describe('exportCurrentProjectAs', () => {
     )
 
     await exportCurrentProjectAs('rendered', ['p1', 'p2'])
-    expect(seen).toEqual([{ format: 'rendered', pages: ['p1', 'p2'] }])
+    expect(seen).toEqual([{ format: 'rendered', output: 'folder', pages: ['p1', 'p2'] }])
     expect(saveBlob).toHaveBeenCalledTimes(1)
-    const [, filename] = asMock(saveBlob).mock.calls[0]
+    const [, filename, options] = asMock(saveBlob).mock.calls[0]
     expect(filename).toBe('koharu-export.zip')
+    expect(options).toEqual({ zipMode: 'extract' })
+  })
+
+  it('can request zip output for multi-file exports', async () => {
+    usePreferencesStore.getState().setMultiFileExportOutput('zip')
+    const seen: Array<Record<string, unknown>> = []
+    server.use(
+      http.post('/api/v1/projects/current/export', async ({ request }) => {
+        seen.push((await request.json()) as Record<string, unknown>)
+        return HttpResponse.arrayBuffer(new Uint8Array([0]).buffer, {
+          headers: { 'content-type': 'application/zip' },
+        })
+      }),
+    )
+
+    await exportCurrentProjectAs('rendered', ['p1', 'p2'])
+    expect(seen).toEqual([{ format: 'rendered', output: 'zip', pages: ['p1', 'p2'] }])
+    const [, , options] = asMock(saveBlob).mock.calls[0]
+    expect(options).toEqual({ zipMode: 'file' })
   })
 
   it('uses .khr extension for khr format', async () => {
@@ -230,8 +251,9 @@ describe('exportCurrentProjectAs', () => {
       ),
     )
     await exportCurrentProjectAs('rendered', ['p1'])
-    const [blob, filename] = asMock(saveBlob).mock.calls[0]
+    const [blob, filename, options] = asMock(saveBlob).mock.calls[0]
     expect(filename).toBe('page-001-abc.png')
     expect((blob as Blob).type).toBe('image/png')
+    expect(options).toEqual({ zipMode: 'file' })
   })
 })
