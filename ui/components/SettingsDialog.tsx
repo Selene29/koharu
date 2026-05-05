@@ -613,31 +613,37 @@ function EnginesPane({
         <div className='grid gap-3 md:grid-cols-2'>
           <ParallelismInput
             label={t('settings.maxPagesInFlight')}
+            description={t('settings.maxPagesInFlightDescription')}
             value={parallelism.max_pages_in_flight}
             onChange={(value) => updateParallelism('max_pages_in_flight', value)}
           />
           <ParallelismInput
             label={t('settings.maxActiveSteps')}
+            description={t('settings.maxActiveStepsDescription')}
             value={parallelism.max_active_steps}
             onChange={(value) => updateParallelism('max_active_steps', value)}
           />
           <ParallelismInput
             label={t('settings.maxModelSteps')}
+            description={t('settings.maxModelStepsDescription')}
             value={parallelism.max_model_steps}
             onChange={(value) => updateParallelism('max_model_steps', value)}
           />
           <ParallelismInput
             label={t('settings.maxLlmSteps')}
+            description={t('settings.maxLlmStepsDescription')}
             value={parallelism.max_llm_steps}
             onChange={(value) => updateParallelism('max_llm_steps', value)}
           />
           <ParallelismInput
             label={t('settings.maxRenderSteps')}
+            description={t('settings.maxRenderStepsDescription')}
             value={parallelism.max_render_steps}
             onChange={(value) => updateParallelism('max_render_steps', value)}
           />
           <ParallelismInput
             label={t('settings.maxSameEngineSteps')}
+            description={t('settings.maxSameEngineStepsDescription')}
             value={parallelism.max_same_engine_steps}
             onChange={(value) => updateParallelism('max_same_engine_steps', value)}
           />
@@ -649,10 +655,12 @@ function EnginesPane({
 
 function ParallelismInput({
   label,
+  description,
   value,
   onChange,
 }: {
   label: string
+  description: string
   value: number | undefined
   onChange: (value: string) => void
 }) {
@@ -668,6 +676,7 @@ function ParallelismInput({
         value={String(value ?? 1)}
         onChange={(event) => onChange(event.target.value)}
       />
+      <p className='text-xs leading-relaxed text-muted-foreground'>{description}</p>
     </div>
   )
 }
