@@ -378,6 +378,8 @@ pub async fn run(
         }
     };
 
+    let run_started = Instant::now();
+
     emit_log(
         JobLogLevel::Info,
         None,
@@ -688,8 +690,10 @@ pub async fn run(
         None,
         None,
         format!(
-            "Pipeline finished: {} page(s), {} warning(s)",
-            total_pages, warning_count
+            "Pipeline finished: {} page(s), {} warning(s), total time {:.2?}",
+            total_pages,
+            warning_count,
+            run_started.elapsed()
         ),
         None,
     );
