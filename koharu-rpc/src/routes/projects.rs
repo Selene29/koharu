@@ -345,7 +345,7 @@ async fn export_current_project(
                                 size,
                             );
                             Ok((
-                                export_entry_name(page_name, i + 1, *id, "_koharu", "psd"),
+                                export_entry_name(page_name, i + 1, total, *id, "_koharu", "psd"),
                                 bytes,
                             ))
                         },
@@ -478,7 +478,7 @@ async fn export_image_role(
                     };
                     let size = bytes.len();
                     let entry = (
-                        export_entry_name(page_name, i + 1, *id, suffix, role_ext(role)),
+                        export_entry_name(page_name, i + 1, total, *id, suffix, role_ext(role)),
                         bytes,
                     );
                     let n = done.fetch_add(1, Ordering::Relaxed) + 1;
@@ -634,8 +634,16 @@ fn role_ext(role: ImageRole) -> &'static str {
     }
 }
 
-fn export_entry_name(page_name: &str, index: usize, id: PageId, suffix: &str, ext: &str) -> String {
-    let fallback = format!("page-{index:03}-{id}.{ext}");
+fn export_entry_name(
+    page_name: &str,
+    index: usize,
+    total: usize,
+    id: PageId,
+    suffix: &str,
+    ext: &str,
+) -> String {
+    let index = padded_export_index(index, total);
+    let fallback = format!("page-{index}-{id}.{ext}");
     let normalized = crate::routes::pages::normalize_page_relative_path(page_name, &fallback);
     let (dir, leaf) = normalized
         .rsplit_once('/')
@@ -643,8 +651,9 @@ fn export_entry_name(page_name: &str, index: usize, id: PageId, suffix: &str, ex
     let stem = leaf
         .rsplit_once('.')
         .map_or(leaf, |(stem, _)| if stem.is_empty() { leaf } else { stem });
+    let stem = pad_numeric_export_stem(stem, total);
     let filename = if stem.is_empty() {
-        format!("page-{index:03}-{id}{suffix}.{ext}")
+        format!("page-{index}-{id}{suffix}.{ext}")
     } else {
         format!("{stem}{suffix}.{ext}")
     };
@@ -652,6 +661,23 @@ fn export_entry_name(page_name: &str, index: usize, id: PageId, suffix: &str, ex
         filename
     } else {
         format!("{dir}/{filename}")
+    }
+}
+
+fn export_number_width(total: usize) -> usize {
+    total.max(1).to_string().len().max(3)
+}
+
+fn padded_export_index(index: usize, total: usize) -> String {
+    format!("{:0width$}", index, width = export_number_width(total))
+}
+
+fn pad_numeric_export_stem(stem: &str, total: usize) -> String {
+    let width = export_number_width(total);
+    if !stem.is_empty() && stem.chars().all(|ch| ch.is_ascii_digit()) && stem.len() < width {
+        format!("{:0>width$}", stem, width = width)
+    } else {
+        stem.to_string()
     }
 }
 
@@ -736,20 +762,41 @@ mod tests {
     fn export_entry_name_preserves_chapter_directories() {
         let id = stable_page_id();
         assert_eq!(
-            export_entry_name("Chapter 01/001.jpg", 1, id, "_koharu", "png"),
+            export_entry_name("Chapter 01/001.jpg", 1, 500, id, "_koharu", "png"),
             "Chapter 01/001_koharu.png"
         );
         assert_eq!(
-            export_entry_name("Chapter 01/001.jpg", 1, id, "_inpainted", "png"),
+            export_entry_name("Chapter 01/001.jpg", 1, 500, id, "_inpainted", "png"),
             "Chapter 01/001_inpainted.png"
         );
         assert_eq!(
-            export_entry_name("Chapter 01/001.jpg", 1, id, "_koharu", "psd"),
+            export_entry_name("Chapter 01/001.jpg", 1, 500, id, "_koharu", "psd"),
             "Chapter 01/001_koharu.psd"
         );
         assert_eq!(
-            export_entry_name("Chapter 01/001.jpg", 1, id, "_source", "png"),
+            export_entry_name("Chapter 01/001.jpg", 1, 500, id, "_source", "png"),
             "Chapter 01/001_source.png"
+        );
+    }
+
+    #[test]
+    fn export_entry_name_pads_numeric_stems_to_export_size() {
+        let id = stable_page_id();
+        assert_eq!(
+            export_entry_name("Chapter 01/5.png", 5, 500, id, "_koharu", "png"),
+            "Chapter 01/005_koharu.png"
+        );
+        assert_eq!(
+            export_entry_name("Chapter 01/50.png", 50, 500, id, "_koharu", "png"),
+            "Chapter 01/050_koharu.png"
+        );
+        assert_eq!(
+            export_entry_name("Chapter 01/500.png", 500, 500, id, "_koharu", "png"),
+            "Chapter 01/500_koharu.png"
+        );
+        assert_eq!(
+            export_entry_name("Chapter 01/5.png", 5, 1000, id, "_koharu", "png"),
+            "Chapter 01/0005_koharu.png"
         );
     }
 
@@ -757,7 +804,7 @@ mod tests {
     fn export_entry_name_sanitizes_traversal() {
         let id = stable_page_id();
         assert_eq!(
-            export_entry_name("../Chapter:01/001?.jpg", 1, id, "_koharu", "png"),
+            export_entry_name("../Chapter:01/001?.jpg", 1, 500, id, "_koharu", "png"),
             "Chapter_01/001__koharu.png"
         );
     }
