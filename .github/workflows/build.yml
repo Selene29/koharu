@@ -4,6 +4,7 @@ on:
   push:
     branches: ['main']
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -16,7 +17,7 @@ jobs:
     name: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '["windows-latest"]' || '["macos-latest","windows-latest","ubuntu-latest"]') }}
       fail-fast: false
     runs-on: ${{ matrix.os }}
     steps:
@@ -49,7 +50,16 @@ jobs:
           key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
       - run: bun install
       - run: bun run build
+      - name: Upload manually triggered Windows executable
+        if: github.event_name == 'workflow_dispatch' && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: koharu-windows-test-${{ github.sha }}
+          path: target/release/koharu.exe
+          if-no-files-found: error
+          retention-days: 7
       - name: Upload Artifact
+        if: github.event_name != 'workflow_dispatch'
         uses: actions/upload-artifact@v7
         with:
           name: koharu-${{ matrix.os }}
